@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>No Payne No Gain</title>
+    <link rel="stylesheet" href="./src/styles.css" />
+  </head>
+  <body>
+    <main id="app">
+      <section id="menu" class="screen screen-menu is-active" aria-label="Menu principal">
+        <div class="menu-shade"></div>
+        <div class="menu-topbar">
+          <span>No Payne No Gain</span>
+          <button id="musicToggleBtn" class="music-toggle" type="button">Musica: ON</button>
+        </div>
+        <div class="menu-copy">
+          <p class="eyebrow">The Tim Payne Experience</p>
+          <h1>No Payne<br />No Gain</h1>
+          <p class="tagline">Modo entrenamiento: un jugador, una pelota y un arquero que empieza a sospechar.</p>
+          <label class="mode-switch" for="proModeToggle">
+            <span>
+              <strong>Pro mode</strong>
+              <small>Pelota con colision clasica</small>
+            </span>
+            <input id="proModeToggle" type="checkbox" checked />
+            <i aria-hidden="true"></i>
+          </label>
+          <div class="menu-actions">
+            <button id="playBtn" class="primary-button" type="button">Entrenamiento</button>
+            <button id="multiplayerBtn" class="secondary-button" type="button">Multijugador</button>
+          </div>
+        </div>
+        <div class="menu-card">
+          <strong>PAYNE</strong>
+          <span>Training OVR 99</span>
+          <span>P: Pro / No Pro</span>
+        </div>
+      </section>
+
+      <section id="roomsScreen" class="screen screen-rooms" aria-label="Rooms multijugador">
+        <div class="multiplayer-shell rooms-shell">
+          <div class="multi-header">
+            <div>
+              <p class="eyebrow">Multijugador</p>
+              <h2>Rooms</h2>
+            </div>
+            <button id="roomsBackBtn" class="secondary-button small-button" type="button">Volver</button>
+          </div>
+
+          <div class="create-match">
+            <div class="server-row">
+              <label>
+                Servidor
+                <input id="serverUrlInput" type="url" placeholder="https://tu-server.onrender.com" />
+              </label>
+              <label>
+                Nombre
+                <input id="playerNameInput" type="text" value="davo" maxlength="18" />
+              </label>
+              <button id="connectServerBtn" class="secondary-button small-button" type="button">Conectar</button>
+              <span id="serverStatus" class="server-status">Local sandbox</span>
+            </div>
+            <div class="create-row">
+              <label>
+                Nombre de room
+                <input id="roomNameInput" type="text" value="davo's room" maxlength="22" />
+              </label>
+              <label>
+                Jugadores
+                <input id="roomMaxInput" type="number" min="2" max="16" value="12" />
+              </label>
+              <button id="createRoomBtn" class="primary-button" type="button">Crear partido</button>
+            </div>
+          </div>
+
+          <div class="room-list-head">
+            <span>Ping</span>
+            <span>Nombre de room</span>
+            <span>Jugadores</span>
+          </div>
+          <div id="roomList" class="room-list"></div>
+        </div>
+      </section>
+
+      <section id="roomScreen" class="screen screen-room" aria-label="Lobby de room">
+        <div class="room-board">
+          <header class="room-board-header">
+            <strong id="activeRoomName">davo's room</strong>
+            <div class="room-tools">
+              <button id="recordBtn" type="button">Rec</button>
+              <button id="copyLinkBtn" type="button">Link</button>
+              <button id="closeRoomOverlayBtn" type="button">Close</button>
+              <button id="leaveRoomBtn" type="button">Leave</button>
+            </div>
+          </header>
+
+          <div class="team-layout">
+            <aside class="room-side-actions">
+              <button id="autoTeamsBtn" type="button">Auto</button>
+              <button id="randomTeamsBtn" type="button">Rand</button>
+              <button id="lockRoomBtn" type="button">Lock</button>
+              <button id="resetTeamsBtn" type="button">Reset</button>
+            </aside>
+
+            <div class="team-column">
+              <div class="team-title red-title">
+                <span>Red</span>
+                <button id="moveToSpectatorsFromRedBtn" type="button">&gt;</button>
+              </div>
+              <div id="redTeamList" class="player-list" data-team="red"></div>
+            </div>
+
+            <div class="team-column spectators-column">
+              <div class="team-title">
+                <button id="moveToRedBtn" type="button">&lt;</button>
+                <span>Spectators</span>
+                <button id="moveToBlueBtn" type="button">&gt;</button>
+              </div>
+              <div id="spectatorsList" class="player-list" data-team="spectators"></div>
+            </div>
+
+            <div class="team-column">
+              <div class="team-title blue-title">
+                <button id="moveToSpectatorsFromBlueBtn" type="button">&lt;</button>
+                <span>Blue</span>
+              </div>
+              <div id="blueTeamList" class="player-list" data-team="blue"></div>
+            </div>
+          </div>
+
+          <div class="room-settings">
+            <label>Time limit <input id="roomTimeInput" type="number" min="1" max="15" value="3" /></label>
+            <label>Score limit <input id="roomScoreInput" type="number" min="1" max="20" value="3" /></label>
+            <label class="room-pro-setting">Pro mode <input id="roomProModeToggle" type="checkbox" checked /></label>
+            <label>Stadium <span>Classic</span> <button id="pickStadiumBtn" type="button">Pick</button></label>
+          </div>
+
+          <button id="startMultiplayerGameBtn" class="start-room-button" type="button">Start game</button>
+        </div>
+      </section>
+
+      <section id="gameScreen" class="screen screen-game" aria-label="Juego">
+        <canvas id="gameCanvas"></canvas>
+        <div class="hud">
+          <div class="hud-panel">
+            <span class="hud-label">Modo</span>
+            <strong id="timer">03:00</strong>
+          </div>
+          <div class="hud-panel">
+            <span class="hud-label">Goles</span>
+            <strong id="score">0</strong>
+          </div>
+          <div class="hud-panel wide">
+            <span class="hud-label">Mística</span>
+            <strong id="moment">Payne arranca</strong>
+          </div>
+        </div>
+        <div class="controls">
+          <span>Arriba/W: avanzar</span>
+          <span>Izq/Der: girar</span>
+          <span>Shift: correr</span>
+          <span>C: camara</span>
+          <span>P: pro mode</span>
+          <span>Ctrl: adelantar pelota</span>
+          <span>E: golpe corto</span>
+          <span>Espacio: remate</span>
+        </div>
+        <button id="roomGameBtn" class="menu-button room-game-button" type="button">Room</button>
+        <button id="backMenuBtn" class="menu-button" type="button">Menu</button>
+        <div id="playerOverlay" class="player-overlay" aria-hidden="true"></div>
+        <div id="chargeMeter" class="charge-meter" aria-hidden="true">
+          <div class="charge-track">
+            <div id="chargeFill" class="charge-fill"></div>
+          </div>
+          <span id="chargeText">0%</span>
+        </div>
+        <div id="goalBanner" class="goal-banner">GOOOOOOL DE PAYNE</div>
+      </section>
+
+      <section id="endScreen" class="screen screen-end" aria-label="Final del partido">
+        <canvas id="celebrationCanvas"></canvas>
+        <div class="end-copy">
+          <p class="eyebrow">Final del partido</p>
+          <h2>Payne levanta la copa</h2>
+          <p>La cancha se rinde. Cae papel picado. Nadie sabe bien que paso, pero todos lo van a compartir.</p>
+          <div class="end-actions">
+            <button id="againBtn" class="primary-button" type="button">Jugar de vuelta</button>
+            <button id="closeBtn" class="secondary-button" type="button">Cerrar</button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <div class="credits">
+      Fondo: Tim Payne (2025, photo 1), Wikimedia Commons.
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/three@0.150.1/build/three.min.js"></script>
+    <script defer src="./src/game.js"></script>
+  </body>
+</html>
