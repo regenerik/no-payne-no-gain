@@ -39,6 +39,7 @@ const startMultiplayerGameBtn = document.querySelector("#startMultiplayerGameBtn
 const roomTimeInput = document.querySelector("#roomTimeInput");
 const roomScoreInput = document.querySelector("#roomScoreInput");
 const roomProModeToggle = document.querySelector("#roomProModeToggle");
+const pickStadiumBtn = document.querySelector("#pickStadiumBtn");
 const timerEl = document.querySelector("#timer");
 const scoreEl = document.querySelector("#score");
 const momentEl = document.querySelector("#moment");
@@ -47,6 +48,14 @@ const playerOverlay = document.querySelector("#playerOverlay");
 const chargeMeter = document.querySelector("#chargeMeter");
 const chargeFill = document.querySelector("#chargeFill");
 const chargeText = document.querySelector("#chargeText");
+const touchControls = document.querySelector("#touchControls");
+const touchJoystick = document.querySelector("#touchJoystick");
+const touchStick = document.querySelector("#touchStick");
+const touchCameraBtn = document.querySelector("#touchCameraBtn");
+const touchProBtn = document.querySelector("#touchProBtn");
+const touchSoftBtn = document.querySelector("#touchSoftBtn");
+const touchPassBtn = document.querySelector("#touchPassBtn");
+const touchShotBtn = document.querySelector("#touchShotBtn");
 
 const matchLength = 180;
 const field = { width: 42, length: 76 };
@@ -104,7 +113,7 @@ let blueScore = 0;
 let remaining = matchLength;
 let playerAngle = 0;
 let cameraMode = "third";
-let proModeEnabled = true;
+let proModeEnabled = false;
 let multiplayerMode = false;
 let ballControlled = false;
 let ballOwner = null;
@@ -132,6 +141,8 @@ let socketServerUrl = localStorage.getItem("npgServerUrl") || "";
 let onlinePlayerName = localStorage.getItem("npgPlayerName") || "davo";
 let lastNetStateAt = 0;
 let lastBallNetStateAt = 0;
+let touchPointerId = null;
+let touchMoveVector = new THREE.Vector2();
 let multiplayerRooms = [
   {
     id: "classic-kiwi",
@@ -167,7 +178,8 @@ let cup;
 let rain = [];
 let gameFrame = 0;
 let celebrationFrame = 0;
-let soundMuted = false;
+let menuMusicMuted = false;
+let stadiumSoundMuted = false;
 let menuMusic;
 let stadiumLoop;
 let goalSound;
@@ -204,7 +216,7 @@ function createAudio(src, { loop = false, volume = 1 } = {}) {
 
 function setupAudio() {
   if (menuMusic) return;
-  menuMusic = createAudio("./sonidos/menu.mp3", { loop: true, volume: 0.72 });
+  menuMusic = createAudio("./sonidos/menu.mp3", { loop: true, volume: 0.5 });
   stadiumLoop = createAudio("./sonidos/ambiente_loop.mp3", { loop: true, volume: 0.32 });
   goalSound = createAudio("./sonidos/gol.mp3", { loop: false, volume: 0.86 });
   kickSound = createAudio("./sonidos/kick.mp3", { loop: false, volume: 0.72 });
@@ -224,20 +236,20 @@ function stopAudio(audio) {
 
 function updateMusicButton() {
   if (!musicToggleBtn) return;
-  musicToggleBtn.textContent = soundMuted ? "Musica: OFF" : "Musica: ON";
+  musicToggleBtn.textContent = menuMusicMuted ? "Musica: OFF" : "Musica: ON";
 }
 
 function startMenuMusic() {
   setupAudio();
   stopAudio(stadiumLoop);
   if (menuMusic.paused && menuMusic.currentTime > 0.25) menuMusic.currentTime = 0;
-  if (!soundMuted) safePlay(menuMusic);
+  if (!menuMusicMuted) safePlay(menuMusic);
 }
 
 function startStadiumAudio() {
   setupAudio();
   stopAudio(menuMusic);
-  if (!soundMuted) safePlay(stadiumLoop);
+  if (!stadiumSoundMuted) safePlay(stadiumLoop);
 }
 
 function stopGameAudio() {
@@ -245,22 +257,35 @@ function stopGameAudio() {
   stopAudio(goalSound);
 }
 
-function toggleMute() {
+function toggleMenuMusic() {
   setupAudio();
-  soundMuted = !soundMuted;
+  menuMusicMuted = !menuMusicMuted;
   updateMusicButton();
-  if (soundMuted) {
+  if (menuMusicMuted) {
     stopAudio(menuMusic);
+    return;
+  }
+  if (menu.classList.contains("is-active")) startMenuMusic();
+}
+
+function toggleStadiumSound() {
+  setupAudio();
+  stadiumSoundMuted = !stadiumSoundMuted;
+  if (stadiumSoundMuted) {
     stopAudio(stadiumLoop);
     stopAudio(goalSound);
     return;
   }
   if (gameScreen.classList.contains("is-active")) startStadiumAudio();
-  else if (menu.classList.contains("is-active")) startMenuMusic();
+}
+
+function toggleMute() {
+  if (gameScreen.classList.contains("is-active")) toggleStadiumSound();
+  else toggleMenuMusic();
 }
 
 function unlockMenuAudio() {
-  if (menu.classList.contains("is-active") && !soundMuted) startMenuMusic();
+  if (menu.classList.contains("is-active") && !menuMusicMuted) startMenuMusic();
 }
 
 document.addEventListener("pointerdown", unlockMenuAudio);
@@ -321,19 +346,23 @@ async function connectOnlineServer() {
       if (roomsScreen.classList.contains("is-active")) renderRoomList();
     });
     socket.on("room:state", (room) => {
+      const previousLocalTeam = activeRoom?.players.find((roomPlayer) => roomPlayer.id === getLocalPlayerId())?.team;
       activeRoom = room;
       roomLocked = Boolean(room.locked);
       selectedPlayerId = selectedPlayerId && room.players.some((roomPlayer) => roomPlayer.id === selectedPlayerId)
         ? selectedPlayerId
         : socket.id;
       if (roomScreen.classList.contains("is-active")) renderRoom();
-      if (multiplayerMode) syncMultiplayerTeamsToField();
+      if (multiplayerMode) {
+        const nextLocalTeam = room.players.find((roomPlayer) => roomPlayer.id === getLocalPlayerId())?.team;
+        syncMultiplayerTeamsToField({ preserveLocal: previousLocalTeam === nextLocalTeam });
+      }
     });
     socket.on("room:started", (room) => {
       activeRoom = room;
       roomTimeInput.value = room.settings?.timeLimit || 3;
       roomScoreInput.value = room.settings?.scoreLimit || 3;
-      roomProModeToggle.checked = room.settings?.proMode !== false;
+      roomProModeToggle.checked = room.settings?.proMode === true;
       startGame({ multiplayer: true });
     });
     socket.on("room:ended", (room) => {
@@ -946,11 +975,13 @@ function applyPlayerTeam(unit, team) {
   }
 }
 
-function syncMultiplayerTeamsToField() {
+function syncMultiplayerTeamsToField({ preserveLocal = false } = {}) {
   if (!multiplayerMode || !activeRoom || !scene || !player) return;
 
-  ballControlled = false;
-  ballOwner = null;
+  if (!preserveLocal) {
+    ballControlled = false;
+    ballOwner = null;
+  }
   multiplayerActors.forEach((actor) => scene.remove(actor));
   multiplayerActors = [];
 
@@ -960,10 +991,12 @@ function syncMultiplayerTeamsToField() {
   player.visible = localPlayer.team === "red" || localPlayer.team === "blue";
   if (player.visible) {
     applyPlayerTeam(player, localPlayer.team);
-    player.position.copy(getLocalMultiplayerStartPosition());
-    playerAngle = getInitialPlayerAngle();
-    player.rotation.y = playerAngle;
-    playerMoveDir.set(Math.sin(playerAngle), 0, Math.cos(playerAngle));
+    if (!preserveLocal) {
+      player.position.copy(getLocalMultiplayerStartPosition());
+      playerAngle = getInitialPlayerAngle();
+      player.rotation.y = playerAngle;
+      playerMoveDir.set(Math.sin(playerAngle), 0, Math.cos(playerAngle));
+    }
   }
 
   addMultiplayerActors();
@@ -1064,7 +1097,7 @@ function applyNetworkScore(payload = {}) {
   if (host) return;
 
   const scoringTeam = payload.scoringTeam;
-  if (!soundMuted) {
+  if (!stadiumSoundMuted) {
     setupAudio();
     goalSound.currentTime = 0;
     safePlay(goalSound);
@@ -1193,8 +1226,8 @@ function setupGame() {
   player.rotation.y = playerAngle;
   playerMoveDir.set(Math.sin(playerAngle), 0, Math.cos(playerAngle));
   proModeEnabled = multiplayerMode
-    ? (roomProModeToggle ? roomProModeToggle.checked : true)
-    : (proModeToggle ? proModeToggle.checked : true);
+    ? (roomProModeToggle ? roomProModeToggle.checked : false)
+    : (proModeToggle ? proModeToggle.checked : false);
   ballTrails.forEach((puff) => scene.remove(puff));
   ballTrails = [];
   goalCooldown = 0;
@@ -1468,8 +1501,17 @@ function releaseChargedShot() {
   kickBall(power, label, chargeRatio, liftPower, "shot");
 }
 
+function beginChargedShot() {
+  if (spaceChargeStart === null) spaceChargeStart = performance.now();
+}
+
+function toggleCameraMode() {
+  cameraMode = cameraMode === "third" ? "broadcast" : "third";
+  momentEl.textContent = cameraMode === "broadcast" ? "Camara clasica activada" : "Camara Payne activada";
+}
+
 function celebrateGoal(scoringTeam = "payne") {
-  if (!soundMuted) {
+  if (!stadiumSoundMuted) {
     setupAudio();
     goalSound.currentTime = 0;
     safePlay(goalSound);
@@ -1855,8 +1897,41 @@ function updateChargeMeter(dt) {
   chargeMeter.style.top = `${THREE.MathUtils.clamp(y, 72, window.innerHeight - 42)}px`;
 }
 
+function getTouchMoveDirection() {
+  if (touchMoveVector.lengthSq() < 0.006 || !camera) return null;
+  if (cameraMode === "broadcast") {
+    return new THREE.Vector3(-touchMoveVector.y, 0, touchMoveVector.x).normalize();
+  }
+  const forward = new THREE.Vector3();
+  camera.getWorldDirection(forward);
+  forward.y = 0;
+  if (forward.lengthSq() < 0.001) forward.set(Math.sin(playerAngle), 0, Math.cos(playerAngle));
+  forward.normalize();
+  const right = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0);
+  right.y = 0;
+  right.normalize();
+  return right.multiplyScalar(touchMoveVector.x)
+    .addScaledVector(forward, -touchMoveVector.y)
+    .normalize();
+}
+
 function updatePlayer(dt) {
   if (!player.visible) return;
+  const touchDir = getTouchMoveDirection();
+  if (touchDir) {
+    const analog = THREE.MathUtils.clamp(touchMoveVector.length(), 0.28, 1);
+    player.position.addScaledVector(touchDir, 10.5 * analog * dt);
+    player.position.x = THREE.MathUtils.clamp(player.position.x, -field.width / 2 + 2, field.width / 2 - 2);
+    player.position.z = THREE.MathUtils.clamp(player.position.z, -field.length / 2 + 1.1, field.length / 2 - 1.1);
+    playerAngle = Math.atan2(touchDir.x, touchDir.z);
+    playerMoveDir.copy(touchDir);
+    player.position.y = Math.abs(Math.sin(performance.now() * 0.014)) * 0.08;
+    player.rotation.y = playerAngle;
+    animatePlayerRun(player, dt, true);
+    resolvePlayerActorCollisions();
+    return;
+  }
+
   if (cameraMode === "broadcast") {
     const screenDir = new THREE.Vector3();
     if (keys.has("KeyW") || keys.has("ArrowUp")) screenDir.x += 1;
@@ -2290,7 +2365,7 @@ function renderRoom() {
   if (activeRoom.settings) {
     roomTimeInput.value = activeRoom.settings.timeLimit || 3;
     roomScoreInput.value = activeRoom.settings.scoreLimit || 3;
-    roomProModeToggle.checked = activeRoom.settings.proMode !== false;
+    roomProModeToggle.checked = activeRoom.settings.proMode === true;
   }
   renderPlayers(redTeamList, "red");
   renderPlayers(spectatorsList, "spectators");
@@ -2317,6 +2392,7 @@ function renderRoom() {
   [roomTimeInput, roomScoreInput, roomProModeToggle].forEach((input) => {
     input.disabled = !canManageRoom;
   });
+  if (pickStadiumBtn) pickStadiumBtn.style.display = canManageRoom ? "" : "none";
   redTeamList.classList.toggle("is-locked", !canManageRoom);
   spectatorsList.classList.toggle("is-locked", !canManageRoom);
   blueTeamList.classList.toggle("is-locked", !canManageRoom);
@@ -2416,6 +2492,10 @@ function startGame(options = {}) {
 }
 
 function returnToMenu() {
+  if (onlineMode && socket?.connected && activeRoom && multiplayerMode && !isCurrentRoomHost()) {
+    leaveRoom();
+    return;
+  }
   keys.clear();
   clearPlayerTags();
   multiplayerMode = false;
@@ -2440,6 +2520,75 @@ function resize() {
     celebrationCamera.updateProjectionMatrix();
     celebrationRenderer.setSize(window.innerWidth, window.innerHeight);
   }
+}
+
+function updateTouchStick(clientX, clientY) {
+  if (!touchJoystick || !touchStick) return;
+  const rect = touchJoystick.getBoundingClientRect();
+  const radius = rect.width / 2;
+  const dx = clientX - rect.left - radius;
+  const dy = clientY - rect.top - radius;
+  const length = Math.min(Math.hypot(dx, dy), radius - 18);
+  const angle = Math.atan2(dy, dx);
+  const knobX = Math.cos(angle) * length;
+  const knobY = Math.sin(angle) * length;
+  touchMoveVector.set(knobX / (radius - 18), knobY / (radius - 18));
+  touchStick.style.transform = `translate(${knobX}px, ${knobY}px)`;
+}
+
+function resetTouchStick() {
+  touchPointerId = null;
+  touchMoveVector.set(0, 0);
+  if (touchStick) touchStick.style.transform = "translate(0, 0)";
+}
+
+function setupTouchControls() {
+  const isTouchDevice = navigator.maxTouchPoints > 0 || window.matchMedia("(pointer: coarse)").matches;
+  document.body.classList.toggle("touch-enabled", isTouchDevice);
+  if (!isTouchDevice || !touchControls || !touchJoystick) return;
+
+  touchJoystick.addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+    touchPointerId = event.pointerId;
+    touchJoystick.setPointerCapture(event.pointerId);
+    updateTouchStick(event.clientX, event.clientY);
+  });
+  touchJoystick.addEventListener("pointermove", (event) => {
+    if (event.pointerId !== touchPointerId) return;
+    event.preventDefault();
+    updateTouchStick(event.clientX, event.clientY);
+  });
+  ["pointerup", "pointercancel", "lostpointercapture"].forEach((eventName) => {
+    touchJoystick.addEventListener(eventName, resetTouchStick);
+  });
+
+  touchCameraBtn?.addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+    toggleCameraMode();
+  });
+  touchProBtn?.addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+    toggleProModeInGame();
+  });
+  touchSoftBtn?.addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+    kickBall(13.26, "Payne adelanta pelota", 0, 0, "soft");
+  });
+  touchPassBtn?.addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+    kickBall(13.88, "Payne mete un golpe corto", 0, 0.8, "pass");
+  });
+  touchShotBtn?.addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+    beginChargedShot();
+  });
+  ["pointerup", "pointercancel", "lostpointercapture"].forEach((eventName) => {
+    touchShotBtn?.addEventListener(eventName, (event) => {
+      event.preventDefault();
+      releaseChargedShot();
+    });
+  });
+  touchControls.addEventListener("contextmenu", (event) => event.preventDefault());
 }
 
 playBtn.addEventListener("click", startGame);
@@ -2481,8 +2630,11 @@ startMultiplayerGameBtn.addEventListener("click", () => {
     return;
   }
   if (onlineMode && socket?.connected) {
-    syncOnlineRoomSettings();
-    socket.emit("room:start");
+    socket.emit("room:start", {
+      timeLimit: roomTimeInput.value,
+      scoreLimit: roomScoreInput.value,
+      proMode: roomProModeToggle.checked,
+    });
     return;
   }
   startGame({ multiplayer: true });
@@ -2533,8 +2685,7 @@ window.addEventListener("keydown", (event) => {
     kickBall(13.88, "Payne mete un golpe corto", 0, 0.8, "pass");
   }
   if (event.code === "KeyC") {
-    cameraMode = cameraMode === "third" ? "broadcast" : "third";
-    momentEl.textContent = cameraMode === "broadcast" ? "Camara clasica activada" : "Camara Payne activada";
+    toggleCameraMode();
   }
   if (event.code === "KeyP") {
     toggleProModeInGame();
@@ -2543,7 +2694,7 @@ window.addEventListener("keydown", (event) => {
     toggleMute();
   }
   if (event.code === "Space") {
-    spaceChargeStart = performance.now();
+    beginChargedShot();
   }
 });
 
@@ -2576,6 +2727,7 @@ if (new URLSearchParams(window.location.search).has("broadcast")) {
 }
 
 setupAudio();
+setupTouchControls();
 updateMusicButton();
 serverUrlInput.value = new URLSearchParams(window.location.search).get("server") || socketServerUrl;
 playerNameInput.value = onlinePlayerName;

@@ -662,6 +662,103 @@ h2 {
   font-weight: 800;
 }
 
+.touch-controls {
+  position: fixed;
+  inset: 0;
+  z-index: 7;
+  display: none;
+  pointer-events: none;
+  touch-action: none;
+}
+
+.touch-enabled .screen-game.is-active .touch-controls {
+  display: block;
+}
+
+.touch-enabled .controls {
+  display: none;
+}
+
+.touch-quick {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  display: flex;
+  gap: 8px;
+  transform: translateX(-50%);
+  pointer-events: auto;
+}
+
+.touch-quick button,
+.touch-actions button {
+  border-radius: 999px;
+  background: rgba(5, 14, 18, 0.72);
+  color: #ffffff;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22);
+  font-size: 11px;
+  font-weight: 950;
+  text-transform: uppercase;
+  touch-action: none;
+}
+
+.touch-quick button {
+  min-width: 74px;
+  min-height: 34px;
+}
+
+.touch-joystick {
+  position: absolute;
+  left: 28px;
+  bottom: 74px;
+  width: 126px;
+  height: 126px;
+  border-radius: 999px;
+  background: rgba(145, 153, 158, 0.28);
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.16);
+  pointer-events: auto;
+  touch-action: none;
+}
+
+.touch-stick {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 54px;
+  height: 54px;
+  margin: -27px 0 0 -27px;
+  border-radius: 999px;
+  background: rgba(184, 192, 196, 0.82);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.28), inset 0 0 0 2px rgba(255, 255, 255, 0.28);
+  pointer-events: none;
+}
+
+.touch-actions {
+  position: absolute;
+  right: 24px;
+  bottom: 70px;
+  display: grid;
+  gap: 9px;
+  pointer-events: auto;
+}
+
+.touch-actions button {
+  min-width: 92px;
+  min-height: 46px;
+}
+
+.touch-actions button:nth-child(1) {
+  background: rgba(43, 95, 142, 0.78);
+}
+
+.touch-actions button:nth-child(2) {
+  background: rgba(41, 122, 84, 0.78);
+}
+
+.touch-actions button:nth-child(3) {
+  min-height: 58px;
+  background: rgba(188, 52, 60, 0.82);
+}
+
 .menu-button {
   position: fixed;
   top: 16px;
@@ -921,5 +1018,50 @@ h2 {
 
   .hud-panel.wide {
     flex-basis: 100%;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 540px) {
+  .touch-quick {
+    left: 50%;
+    bottom: 10px;
+  }
+
+  .touch-quick button {
+    min-width: 62px;
+    min-height: 30px;
+    font-size: 10px;
+  }
+
+  .touch-joystick {
+    left: 24px;
+    bottom: 22px;
+    width: 104px;
+    height: 104px;
+  }
+
+  .touch-stick {
+    width: 46px;
+    height: 46px;
+    margin: -23px 0 0 -23px;
+  }
+
+  .touch-actions {
+    right: 22px;
+    bottom: 18px;
+    grid-template-columns: repeat(3, 64px);
+    gap: 7px;
+  }
+
+  .touch-actions button,
+  .touch-actions button:nth-child(3) {
+    min-width: 64px;
+    min-height: 42px;
+    padding: 0 6px;
+    font-size: 9px;
+  }
+
+  .controls {
+    display: none;
   }
 }

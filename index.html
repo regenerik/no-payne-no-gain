@@ -23,7 +23,7 @@
               <strong>Pro mode</strong>
               <small>Pelota con colision clasica</small>
             </span>
-            <input id="proModeToggle" type="checkbox" checked />
+            <input id="proModeToggle" type="checkbox" />
             <i aria-hidden="true"></i>
           </label>
           <div class="menu-actions">
@@ -132,7 +132,7 @@
           <div class="room-settings">
             <label>Time limit <input id="roomTimeInput" type="number" min="1" max="15" value="3" /></label>
             <label>Score limit <input id="roomScoreInput" type="number" min="1" max="20" value="3" /></label>
-            <label class="room-pro-setting">Pro mode <input id="roomProModeToggle" type="checkbox" checked /></label>
+            <label class="room-pro-setting">Pro mode <input id="roomProModeToggle" type="checkbox" /></label>
             <label>Stadium <span>Classic</span> <button id="pickStadiumBtn" type="button">Pick</button></label>
           </div>
 
@@ -165,6 +165,20 @@
           <span>Ctrl: adelantar pelota</span>
           <span>E: golpe corto</span>
           <span>Espacio: remate</span>
+        </div>
+        <div id="touchControls" class="touch-controls" aria-label="Controles tactiles">
+          <div class="touch-quick">
+            <button id="touchCameraBtn" type="button">Camara</button>
+            <button id="touchProBtn" type="button">Pro</button>
+          </div>
+          <div id="touchJoystick" class="touch-joystick" aria-label="Movimiento">
+            <div id="touchStick" class="touch-stick"></div>
+          </div>
+          <div class="touch-actions" aria-label="Disparos">
+            <button id="touchSoftBtn" type="button">Adelantar</button>
+            <button id="touchPassBtn" type="button">Pase</button>
+            <button id="touchShotBtn" type="button">Remate</button>
+          </div>
         </div>
         <button id="roomGameBtn" class="menu-button room-game-button" type="button">Room</button>
         <button id="backMenuBtn" class="menu-button" type="button">Menu</button>
