@@ -131,6 +131,7 @@ let socket = null;
 let socketServerUrl = localStorage.getItem("npgServerUrl") || "";
 let onlinePlayerName = localStorage.getItem("npgPlayerName") || "davo";
 let lastNetStateAt = 0;
+let lastBallNetStateAt = 0;
 let multiplayerRooms = [
   {
     id: "classic-kiwi",
@@ -335,6 +336,15 @@ async function connectOnlineServer() {
     });
     socket.on("player:state", ({ playerId, state }) => {
       applyRemotePlayerState(playerId, state);
+    });
+    socket.on("ball:state", (state) => {
+      applyNetworkBallState(state);
+    });
+    socket.on("ball:kick", (kick) => {
+      applyNetworkKickRequest(kick);
+    });
+    socket.on("match:score", (payload) => {
+      applyNetworkScore(payload);
     });
   } catch {
     onlineMode = false;
@@ -887,6 +897,14 @@ function getLocalPlayerId() {
   return onlineMode && socket?.id ? socket.id : "local-host";
 }
 
+function isOnlineHost() {
+  return onlineMode && socket?.connected && activeRoom?.hostId === socket.id;
+}
+
+function usesNetworkBallAuthority() {
+  return onlineMode && socket?.connected && multiplayerMode;
+}
+
 function getLocalRoomPlayer() {
   if (!activeRoom) return { id: "local-host", name: "davo", team: "red", score: 0 };
   return activeRoom.players.find((roomPlayer) => roomPlayer.id === getLocalPlayerId()) || activeRoom.players[0];
@@ -958,6 +976,100 @@ function emitLocalPlayerState() {
     angle: player.rotation.y,
     moving: player.position.y > 0.01,
   });
+}
+
+function emitBallState() {
+  if (!usesNetworkBallAuthority() || !isOnlineHost() || !ball || !ballVelocity) return;
+  const now = performance.now();
+  if (now - lastBallNetStateAt < 33) return;
+  lastBallNetStateAt = now;
+  socket.emit("ball:state", {
+    x: ball.position.x,
+    y: ball.position.y,
+    z: ball.position.z,
+    vx: ballVelocity.x,
+    vz: ballVelocity.z,
+    vy: ballVerticalVelocity,
+    charge: ballShotCharge,
+    ownerId: ballOwner?.userData?.playerId || (ballOwner === player ? getLocalPlayerId() : null),
+  });
+}
+
+function applyNetworkBallState(state = {}) {
+  if (!usesNetworkBallAuthority() || isOnlineHost() || !ball || !ballVelocity) return;
+  ball.position.set(
+    Number(state.x) || 0,
+    Number(state.y) || 0.42,
+    Number(state.z) || 0
+  );
+  ballVelocity.set(Number(state.vx) || 0, 0, Number(state.vz) || 0);
+  ballVerticalVelocity = Number(state.vy) || 0;
+  ballShotCharge = Number(state.charge) || 0;
+  ballControlled = false;
+  ballOwner = null;
+}
+
+function applyNetworkKickRequest(kick = {}) {
+  if (!usesNetworkBallAuthority() || !isOnlineHost() || !ball || !ballVelocity) return;
+  const actor = multiplayerActors.find((unit) => unit.userData.playerId === kick.playerId);
+  if (!actor?.visible || actor.position.distanceTo(ball.position) > 3.65) return;
+  const chargeRatio = THREE.MathUtils.clamp(Number(kick.chargeRatio) || 0, 0, 1);
+  const power = THREE.MathUtils.clamp(Number(kick.power) || 0, 0, 52);
+  const dir = new THREE.Vector3(Number(kick.dir?.x) || 0, 0, Number(kick.dir?.z) || 0);
+  if (dir.lengthSq() < 0.001) dir.copy(ball.position).sub(actor.position).setY(0);
+  if (dir.lengthSq() < 0.001) return;
+  dir.normalize();
+  playKickSound(kick.soundKind || "shot", chargeRatio);
+  ballControlled = false;
+  ballOwner = null;
+  ballMagnetCooldown = 0.58 + chargeRatio * 0.22;
+  ballVelocity.addScaledVector(dir, power);
+  ballVelocity.clampLength(0, 42);
+  ballVerticalVelocity = Math.max(ballVerticalVelocity, Number(kick.liftPower) || 0);
+  ballShotCharge = Math.max(ballShotCharge, chargeRatio);
+  ball.position.addScaledVector(dir, 0.22);
+  spawnBallTrail(dir, chargeRatio);
+}
+
+function resetLocalPlayerForKickoff() {
+  if (!player || !multiplayerMode) return;
+  player.position.copy(getLocalMultiplayerStartPosition());
+  playerAngle = getInitialPlayerAngle();
+  player.rotation.y = playerAngle;
+  playerMoveDir.set(Math.sin(playerAngle), 0, Math.cos(playerAngle));
+}
+
+function applyNetworkScore(payload = {}) {
+  if (!multiplayerMode || !payload.scores) return;
+  const host = isOnlineHost();
+  redScore = Number(payload.scores.red) || 0;
+  blueScore = Number(payload.scores.blue) || 0;
+  scoreEl.textContent = `Rojo ${redScore} - ${blueScore} Azul`;
+  updateStadiumScoreboard();
+  if (host) return;
+
+  const scoringTeam = payload.scoringTeam;
+  if (!soundMuted) {
+    setupAudio();
+    goalSound.currentTime = 0;
+    safePlay(goalSound);
+  }
+  goalBanner.textContent = scoringTeam === "blue" ? "GOOOL DE AZUL" : "GOOOL DE ROJO";
+  goalBanner.classList.remove("show");
+  void goalBanner.offsetWidth;
+  goalBanner.classList.add("show");
+  momentEl.textContent = `${scoringTeam === "blue" ? "Azul" : "Rojo"} mete gol y el estadio entiende todo`;
+  ballControlled = false;
+  ballOwner = null;
+  ballMagnetCooldown = 0;
+  goalCooldown = 1.15;
+  setTimeout(() => {
+    if (!ended) {
+      resetLocalPlayerForKickoff();
+      goalCooldown = 0;
+      momentEl.textContent = "Saque desde el centro";
+    }
+  }, 950);
 }
 
 function addMultiplayerActors() {
@@ -1298,6 +1410,17 @@ function kickBall(power, label, chargeRatio = 0, liftPower = 0, soundKind = "sho
   ballControlled = false;
   ballOwner = null;
   ballMagnetCooldown = 0.58 + chargeRatio * 0.22;
+  if (usesNetworkBallAuthority() && !isOnlineHost()) {
+    socket.emit("ball:kick", {
+      power,
+      chargeRatio,
+      liftPower,
+      soundKind,
+      dir: { x: dir.x, z: dir.z },
+    });
+    momentEl.textContent = label;
+    return;
+  }
   prepareKeeperForShot(dir, chargeRatio);
   ballVelocity.addScaledVector(dir, power);
   ballVelocity.clampLength(0, 42);
@@ -1334,6 +1457,7 @@ function celebrateGoal(scoringTeam = "payne") {
     if (scoringTeam === "blue") blueScore += 1;
     scoreEl.textContent = `Rojo ${redScore} - ${blueScore} Azul`;
     goalBanner.textContent = scoringTeam === "red" ? "GOOOL DE ROJO" : "GOOOL DE AZUL";
+    if (isOnlineHost()) socket.emit("match:goal", { scoringTeam });
   } else {
     score += 1;
     scoreEl.textContent = String(score);
@@ -1376,10 +1500,13 @@ function celebrateGoal(scoringTeam = "payne") {
         keeperState.targetZ = field.length / 2 - 4.5;
         keeperState.diveTimer = 0;
       }
-      player.position.copy(multiplayerMode ? getLocalMultiplayerStartPosition() : new THREE.Vector3(0, 0, -2.4));
-      playerAngle = getInitialPlayerAngle();
-      player.rotation.y = playerAngle;
-      playerMoveDir.set(Math.sin(playerAngle), 0, Math.cos(playerAngle));
+      if (multiplayerMode) resetLocalPlayerForKickoff();
+      else {
+        player.position.set(0, 0, -2.4);
+        playerAngle = getInitialPlayerAngle();
+        player.rotation.y = playerAngle;
+        playerMoveDir.set(Math.sin(playerAngle), 0, Math.cos(playerAngle));
+      }
       ball.position.set(0, 0.42, multiplayerMode ? 0 : 0.8);
       ballVelocity.set(0, 0, 0);
       ballVerticalVelocity = 0;
@@ -1570,6 +1697,13 @@ function updateBall(dt) {
   }
 
   ballMagnetCooldown = Math.max(0, ballMagnetCooldown - dt);
+
+  if (usesNetworkBallAuthority() && !isOnlineHost()) {
+    ball.rotation.x += ballVelocity.z * dt * 2.4;
+    ball.rotation.z -= ballVelocity.x * dt * 2.4;
+    ball.rotation.y += ballVelocity.length() * dt * 0.8;
+    return;
+  }
 
   const ballRadius = 0.42;
   const minX = -field.width / 2 + ballRadius;
@@ -1802,6 +1936,7 @@ function animateGame() {
   updateChargeMeter(dt);
   updatePlayerTags();
   emitLocalPlayerState();
+  emitBallState();
 
   renderer.render(scene, camera);
 
