@@ -56,6 +56,7 @@ const touchProBtn = document.querySelector("#touchProBtn");
 const touchSoftBtn = document.querySelector("#touchSoftBtn");
 const touchPassBtn = document.querySelector("#touchPassBtn");
 const touchShotBtn = document.querySelector("#touchShotBtn");
+let spectatorNotice;
 
 const matchLength = 180;
 const field = { width: 42, length: 76 };
@@ -141,6 +142,7 @@ let socketServerUrl = localStorage.getItem("npgServerUrl") || "";
 let onlinePlayerName = localStorage.getItem("npgPlayerName") || "davo";
 let lastNetStateAt = 0;
 let lastBallNetStateAt = 0;
+let networkBallOwnerId = null;
 let touchPointerId = null;
 let touchMoveVector = new THREE.Vector2();
 let multiplayerRooms = [
@@ -192,6 +194,26 @@ function showScreen(active) {
     screen.classList.remove("is-overlay");
   });
   active.classList.add("is-active");
+}
+
+function ensureSpectatorNotice() {
+  if (spectatorNotice) return spectatorNotice;
+  spectatorNotice = document.createElement("div");
+  spectatorNotice.className = "spectator-notice";
+  spectatorNotice.textContent = "!";
+  spectatorNotice.title = "Hay jugadores en espectadores";
+  document.body.appendChild(spectatorNotice);
+  return spectatorNotice;
+}
+
+function updateSpectatorNotice() {
+  const notice = ensureSpectatorNotice();
+  const shouldShow = Boolean(
+    activeRoom
+    && isCurrentRoomHost()
+    && activeRoom.players?.some((roomPlayer) => roomPlayer.team === "spectators")
+  );
+  notice.classList.toggle("show", shouldShow);
 }
 
 function makeCanvasTexture(draw, width = 256, height = 256) {
@@ -353,6 +375,7 @@ async function connectOnlineServer() {
         ? selectedPlayerId
         : socket.id;
       if (roomScreen.classList.contains("is-active")) renderRoom();
+      updateSpectatorNotice();
       if (multiplayerMode) {
         const nextLocalTeam = room.players.find((roomPlayer) => roomPlayer.id === getLocalPlayerId())?.team;
         syncMultiplayerTeamsToField({ preserveLocal: previousLocalTeam === nextLocalTeam });
@@ -1045,6 +1068,14 @@ function emitBallState() {
 
 function applyNetworkBallState(state = {}) {
   if (!usesNetworkBallAuthority() || isOnlineHost() || !ball || !ballVelocity) return;
+  networkBallOwnerId = state.ownerId || null;
+  if (networkBallOwnerId === getLocalPlayerId() && !proModeEnabled && player?.visible) {
+    ballControlled = true;
+    ballOwner = player;
+    ballVerticalVelocity = 0;
+    ballShotCharge = 0;
+    return;
+  }
   ball.position.set(
     Number(state.x) || 0,
     Number(state.y) || 0.42,
@@ -1464,6 +1495,7 @@ function kickBall(power, label, chargeRatio = 0, liftPower = 0, soundKind = "sho
   playKickSound(soundKind, chargeRatio);
   ballControlled = false;
   ballOwner = null;
+  networkBallOwnerId = null;
   ballMagnetCooldown = 0.58 + chargeRatio * 0.22;
   if (usesNetworkBallAuthority() && !isOnlineHost()) {
     socket.emit("ball:kick", {
@@ -1763,6 +1795,17 @@ function updateBall(dt) {
   ballMagnetCooldown = Math.max(0, ballMagnetCooldown - dt);
 
   if (usesNetworkBallAuthority() && !isOnlineHost()) {
+    if (networkBallOwnerId === getLocalPlayerId() && !proModeEnabled && player?.visible) {
+      const ballRadius = 0.42;
+      const minX = -field.width / 2 + ballRadius;
+      const maxX = field.width / 2 - ballRadius;
+      const minZ = -field.length / 2 + ballRadius;
+      const maxZ = field.length / 2 - ballRadius;
+      ballControlled = true;
+      ballOwner = player;
+      updateControlledBall(player, dt, minX, maxX, minZ, maxZ);
+      return;
+    }
     ball.rotation.x += ballVelocity.z * dt * 2.4;
     ball.rotation.z -= ballVelocity.x * dt * 2.4;
     ball.rotation.y += ballVelocity.length() * dt * 0.8;
@@ -1920,14 +1963,38 @@ function updatePlayer(dt) {
   const touchDir = getTouchMoveDirection();
   if (touchDir) {
     const analog = THREE.MathUtils.clamp(touchMoveVector.length(), 0.28, 1);
-    player.position.addScaledVector(touchDir, 10.5 * analog * dt);
-    player.position.x = THREE.MathUtils.clamp(player.position.x, -field.width / 2 + 2, field.width / 2 - 2);
-    player.position.z = THREE.MathUtils.clamp(player.position.z, -field.length / 2 + 1.1, field.length / 2 - 1.1);
-    playerAngle = Math.atan2(touchDir.x, touchDir.z);
-    playerMoveDir.copy(touchDir);
-    player.position.y = Math.abs(Math.sin(performance.now() * 0.014)) * 0.08;
+    if (cameraMode === "broadcast") {
+      player.position.addScaledVector(touchDir, 10.5 * analog * dt);
+      player.position.x = THREE.MathUtils.clamp(player.position.x, -field.width / 2 + 2, field.width / 2 - 2);
+      player.position.z = THREE.MathUtils.clamp(player.position.z, -field.length / 2 + 1.1, field.length / 2 - 1.1);
+      playerAngle = Math.atan2(touchDir.x, touchDir.z);
+      playerMoveDir.copy(touchDir);
+      player.position.y = Math.abs(Math.sin(performance.now() * 0.014)) * 0.08;
+      player.rotation.y = playerAngle;
+      animatePlayerRun(player, dt, true);
+      resolvePlayerActorCollisions();
+      return;
+    }
+
+    const touchTurn = -touchMoveVector.x;
+    const touchThrottle = -touchMoveVector.y;
+    if (Math.abs(touchTurn) > 0.08) {
+      const steeringBoost = Math.abs(touchThrottle) > 0.08 ? 1.18 : 0.86;
+      playerAngle += touchTurn * 3.35 * steeringBoost * dt;
+    }
+    if (Math.abs(touchThrottle) > 0.08) {
+      const forward = new THREE.Vector3(Math.sin(playerAngle), 0, Math.cos(playerAngle));
+      player.position.addScaledVector(forward, touchThrottle * 10.5 * analog * dt);
+      playerMoveDir.copy(forward).multiplyScalar(Math.sign(touchThrottle)).normalize();
+      player.position.x = THREE.MathUtils.clamp(player.position.x, -field.width / 2 + 2, field.width / 2 - 2);
+      player.position.z = THREE.MathUtils.clamp(player.position.z, -field.length / 2 + 1.1, field.length / 2 - 1.1);
+      player.position.y = Math.abs(Math.sin(performance.now() * 0.014)) * 0.08;
+    } else {
+      playerMoveDir.set(Math.sin(playerAngle), 0, Math.cos(playerAngle));
+      player.position.y = THREE.MathUtils.lerp(player.position.y, 0, 0.18);
+    }
     player.rotation.y = playerAngle;
-    animatePlayerRun(player, dt, true);
+    animatePlayerRun(player, dt, Math.abs(touchThrottle) > 0.08 || Math.abs(touchTurn) > 0.08);
     resolvePlayerActorCollisions();
     return;
   }
@@ -2146,6 +2213,7 @@ function handleRoomClosed() {
   roomOverlayOpen = false;
   activeRoom = null;
   selectedPlayerId = null;
+  updateSpectatorNotice();
   stopGameAudio();
   updateServerStatus("Room cerrada por el creador");
   openRooms();
@@ -2216,6 +2284,7 @@ function openRooms() {
   stopAudio(menuMusic);
   renderRoomList();
   showScreen(roomsScreen);
+  updateSpectatorNotice();
 }
 
 function openRoomOverlay() {
@@ -2396,6 +2465,7 @@ function renderRoom() {
   redTeamList.classList.toggle("is-locked", !canManageRoom);
   spectatorsList.classList.toggle("is-locked", !canManageRoom);
   blueTeamList.classList.toggle("is-locked", !canManageRoom);
+  updateSpectatorNotice();
 }
 
 function moveSelectedPlayer(team) {
@@ -2506,6 +2576,7 @@ function returnToMenu() {
   if (renderer) renderer.setAnimationLoop(null);
   if (celebrationFrame) cancelAnimationFrame(celebrationFrame);
   showScreen(menu);
+  updateSpectatorNotice();
   startMenuMusic();
 }
 

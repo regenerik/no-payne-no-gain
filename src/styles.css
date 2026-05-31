@@ -786,6 +786,29 @@ h2 {
   display: none;
 }
 
+.spectator-notice {
+  position: fixed;
+  top: 72px;
+  right: 18px;
+  z-index: 13;
+  display: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  background: #f7c948;
+  color: #111816;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.34), inset 0 0 0 2px rgba(255, 255, 255, 0.5);
+  font-size: 22px;
+  font-weight: 1000;
+  line-height: 30px;
+  text-align: center;
+  pointer-events: none;
+}
+
+.spectator-notice.show {
+  display: block;
+}
+
 .screen-room.is-overlay {
   display: block;
   z-index: 12;
