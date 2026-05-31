@@ -543,6 +543,10 @@ h2 {
   outline-offset: -2px;
 }
 
+.player-list.is-locked .player-row {
+  cursor: default;
+}
+
 .player-row small {
   color: #ffffff;
   font-size: 12px;

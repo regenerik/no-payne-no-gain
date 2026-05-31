@@ -323,7 +323,9 @@ async function connectOnlineServer() {
     socket.on("room:state", (room) => {
       activeRoom = room;
       roomLocked = Boolean(room.locked);
-      selectedPlayerId = socket.id;
+      selectedPlayerId = selectedPlayerId && room.players.some((roomPlayer) => roomPlayer.id === selectedPlayerId)
+        ? selectedPlayerId
+        : socket.id;
       if (roomScreen.classList.contains("is-active")) renderRoom();
       if (multiplayerMode) syncMultiplayerTeamsToField();
     });
@@ -333,6 +335,13 @@ async function connectOnlineServer() {
       roomScoreInput.value = room.settings?.scoreLimit || 3;
       roomProModeToggle.checked = room.settings?.proMode !== false;
       startGame({ multiplayer: true });
+    });
+    socket.on("room:ended", (room) => {
+      activeRoom = room;
+      finishMatch();
+    });
+    socket.on("room:closed", () => {
+      handleRoomClosed();
     });
     socket.on("player:state", ({ playerId, state }) => {
       applyRemotePlayerState(playerId, state);
@@ -901,6 +910,12 @@ function isOnlineHost() {
   return onlineMode && socket?.connected && activeRoom?.hostId === socket.id;
 }
 
+function isCurrentRoomHost() {
+  if (!activeRoom) return false;
+  if (onlineMode && socket?.connected) return activeRoom.hostId === socket.id;
+  return true;
+}
+
 function usesNetworkBallAuthority() {
   return onlineMode && socket?.connected && multiplayerMode;
 }
@@ -1124,6 +1139,7 @@ function setupGame() {
   player.userData.name = multiplayerMode ? localRoomPlayer.name : "Payne";
   player.userData.team = multiplayerMode ? localRoomPlayer.team : "red";
   player.userData.isLocal = true;
+  player.visible = !multiplayerMode || localRoomPlayer.team === "red" || localRoomPlayer.team === "blue";
   player.position.copy(getLocalMultiplayerStartPosition());
   scene.add(player);
   addMultiplayerActors();
@@ -1161,6 +1177,9 @@ function setupGame() {
   redScore = 0;
   blueScore = 0;
   remaining = multiplayerMode ? (Number(roomTimeInput?.value) || 3) * 60 : Infinity;
+  if (multiplayerMode && activeRoom?.matchEndsAt) {
+    remaining = Math.max(0, (Number(activeRoom.matchEndsAt) - Date.now()) / 1000);
+  }
   ballVelocity = new THREE.Vector3();
   ballVerticalVelocity = 0;
   ballShotCharge = 0;
@@ -1180,7 +1199,7 @@ function setupGame() {
   ballTrails = [];
   goalCooldown = 0;
   ended = false;
-  cameraMode = "third";
+  cameraMode = multiplayerMode && !player.visible ? "broadcast" : "third";
   phraseTimer = 0;
   scoreEl.textContent = multiplayerMode ? "Rojo 0 - 0 Azul" : "0";
   updateStadiumScoreboard();
@@ -1196,6 +1215,9 @@ function updateTimer() {
   if (!multiplayerMode) {
     timerEl.textContent = "Entrenamiento";
     return;
+  }
+  if (activeRoom?.matchEndsAt) {
+    remaining = Math.max(0, (Number(activeRoom.matchEndsAt) - Date.now()) / 1000);
   }
   const total = Math.max(0, Math.ceil(remaining));
   const m = String(Math.floor(total / 60)).padStart(2, "0");
@@ -1919,7 +1941,7 @@ function animateGame() {
   gameFrame = requestAnimationFrame(animateGame);
   const dt = Math.min(clock.getDelta(), 0.04);
 
-  if (multiplayerMode) remaining -= dt;
+  if (multiplayerMode && !activeRoom?.matchEndsAt) remaining -= dt;
   updateTimer();
   phraseTimer -= dt;
   if (phraseTimer <= 0) {
@@ -1940,7 +1962,7 @@ function animateGame() {
 
   renderer.render(scene, camera);
 
-  if (multiplayerMode && remaining <= 0 && !ended) {
+  if (multiplayerMode && remaining <= 0 && !ended && !usesNetworkBallAuthority()) {
     ended = true;
     finishMatch();
   }
@@ -2040,6 +2062,20 @@ function finishMatch() {
   startCelebration();
 }
 
+function handleRoomClosed() {
+  keys.clear();
+  clearPlayerTags();
+  if (gameFrame) cancelAnimationFrame(gameFrame);
+  gameFrame = 0;
+  multiplayerMode = false;
+  roomOverlayOpen = false;
+  activeRoom = null;
+  selectedPlayerId = null;
+  stopGameAudio();
+  updateServerStatus("Room cerrada por el creador");
+  openRooms();
+}
+
 function animateCelebration() {
   if (!endScreen.classList.contains("is-active")) return;
   celebrationFrame = requestAnimationFrame(animateCelebration);
@@ -2081,8 +2117,13 @@ function renderRoomList() {
           if (response?.ok) {
             activeRoom = response.room;
             selectedPlayerId = socket.id;
-            renderRoom();
-            showScreen(roomScreen);
+            if (response.room.started) {
+              startGame({ multiplayer: true });
+              openRoomOverlay();
+            } else {
+              renderRoom();
+              showScreen(roomScreen);
+            }
           } else {
             updateServerStatus(response?.error || "No pude entrar");
           }
@@ -2114,6 +2155,22 @@ function closeRoomOverlay() {
   if (!roomOverlayOpen) return;
   roomOverlayOpen = false;
   roomScreen.classList.remove("is-active", "is-overlay");
+}
+
+function leaveRoom() {
+  if (onlineMode && socket?.connected && activeRoom) {
+    socket.emit("room:leave");
+  }
+  keys.clear();
+  clearPlayerTags();
+  if (gameFrame) cancelAnimationFrame(gameFrame);
+  gameFrame = 0;
+  multiplayerMode = false;
+  roomOverlayOpen = false;
+  activeRoom = null;
+  selectedPlayerId = null;
+  stopGameAudio();
+  openRooms();
 }
 
 function toggleProModeInGame() {
@@ -2173,13 +2230,14 @@ function openRoom(roomId) {
 
 function renderPlayers(container, team) {
   container.innerHTML = "";
+  const canManageRoom = isCurrentRoomHost();
   activeRoom.players
     .filter((playerInfo) => playerInfo.team === team)
     .forEach((playerInfo) => {
       const row = document.createElement("button");
       row.className = `player-row${playerInfo.id === selectedPlayerId ? " is-selected" : ""}`;
       row.type = "button";
-      row.draggable = true;
+      row.draggable = canManageRoom;
       row.dataset.playerId = playerInfo.id;
       row.innerHTML = `<span>${playerInfo.name}</span><small>${playerInfo.score}</small>`;
       row.addEventListener("click", () => {
@@ -2187,6 +2245,10 @@ function renderPlayers(container, team) {
         renderRoom();
       });
       row.addEventListener("dragstart", (event) => {
+        if (!canManageRoom) {
+          event.preventDefault();
+          return;
+        }
         selectedPlayerId = playerInfo.id;
         event.dataTransfer.setData("text/plain", playerInfo.id);
         event.dataTransfer.effectAllowed = "move";
@@ -2202,6 +2264,7 @@ function renderPlayers(container, team) {
 function setupRoomDropZone(container, team) {
   if (!container) return;
   container.addEventListener("dragover", (event) => {
+    if (!isCurrentRoomHost()) return;
     event.preventDefault();
     container.classList.add("is-drop-target");
   });
@@ -2211,6 +2274,7 @@ function setupRoomDropZone(container, team) {
   container.addEventListener("drop", (event) => {
     event.preventDefault();
     container.classList.remove("is-drop-target");
+    if (!isCurrentRoomHost()) return;
     const playerId = event.dataTransfer.getData("text/plain") || selectedPlayerId;
     if (!playerId) return;
     selectedPlayerId = playerId;
@@ -2220,6 +2284,8 @@ function setupRoomDropZone(container, team) {
 
 function renderRoom() {
   if (!activeRoom) return;
+  const canManageRoom = isCurrentRoomHost();
+  const matchRunning = Boolean(activeRoom.started || multiplayerMode);
   activeRoomName.textContent = activeRoom.name;
   if (activeRoom.settings) {
     roomTimeInput.value = activeRoom.settings.timeLimit || 3;
@@ -2230,10 +2296,34 @@ function renderRoom() {
   renderPlayers(spectatorsList, "spectators");
   renderPlayers(blueTeamList, "blue");
   lockRoomBtn.textContent = roomLocked ? "Unlock" : "Lock";
+  startMultiplayerGameBtn.textContent = canManageRoom
+    ? "Start game"
+    : (matchRunning ? "Back to game" : "Esperando start");
+  startMultiplayerGameBtn.disabled = !canManageRoom && !matchRunning;
+  closeRoomOverlayBtn.textContent = "X";
+  closeRoomOverlayBtn.style.display = matchRunning ? "inline-flex" : "";
+  [
+    autoTeamsBtn,
+    randomTeamsBtn,
+    lockRoomBtn,
+    resetTeamsBtn,
+    moveToRedBtn,
+    moveToBlueBtn,
+    moveToSpectatorsFromRedBtn,
+    moveToSpectatorsFromBlueBtn,
+  ].forEach((button) => {
+    button.style.display = canManageRoom ? "" : "none";
+  });
+  [roomTimeInput, roomScoreInput, roomProModeToggle].forEach((input) => {
+    input.disabled = !canManageRoom;
+  });
+  redTeamList.classList.toggle("is-locked", !canManageRoom);
+  spectatorsList.classList.toggle("is-locked", !canManageRoom);
+  blueTeamList.classList.toggle("is-locked", !canManageRoom);
 }
 
 function moveSelectedPlayer(team) {
-  if (!activeRoom || !selectedPlayerId) return;
+  if (!activeRoom || !selectedPlayerId || !isCurrentRoomHost()) return;
   if (onlineMode && socket?.connected) {
     socket.emit("player:team", { playerId: selectedPlayerId, team });
     return;
@@ -2298,7 +2388,7 @@ function copyRoomLink() {
 }
 
 function syncOnlineRoomSettings() {
-  if (!onlineMode || !socket?.connected || !activeRoom) return;
+  if (!onlineMode || !socket?.connected || !activeRoom || !isCurrentRoomHost()) return;
   socket.emit("room:settings", {
     timeLimit: roomTimeInput.value,
     scoreLimit: roomScoreInput.value,
@@ -2381,11 +2471,15 @@ lockRoomBtn.addEventListener("click", () => {
 });
 copyLinkBtn.addEventListener("click", copyRoomLink);
 closeRoomOverlayBtn.addEventListener("click", closeRoomOverlay);
-leaveRoomBtn.addEventListener("click", openRooms);
+leaveRoomBtn.addEventListener("click", leaveRoom);
 roomTimeInput.addEventListener("change", syncOnlineRoomSettings);
 roomScoreInput.addEventListener("change", syncOnlineRoomSettings);
 roomProModeToggle.addEventListener("change", syncOnlineRoomSettings);
 startMultiplayerGameBtn.addEventListener("click", () => {
+  if (!isCurrentRoomHost()) {
+    if (multiplayerMode) closeRoomOverlay();
+    return;
+  }
   if (onlineMode && socket?.connected) {
     syncOnlineRoomSettings();
     socket.emit("room:start");
@@ -2499,8 +2593,13 @@ if (sharedServerUrl && sharedRoomId) {
         if (response?.ok) {
           activeRoom = response.room;
           selectedPlayerId = socket.id;
-          renderRoom();
-          showScreen(roomScreen);
+          if (response.room.started) {
+            startGame({ multiplayer: true });
+            openRoomOverlay();
+          } else {
+            renderRoom();
+            showScreen(roomScreen);
+          }
         }
       });
     }, 500);
