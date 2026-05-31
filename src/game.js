@@ -143,33 +143,11 @@ let onlinePlayerName = localStorage.getItem("npgPlayerName") || "davo";
 let lastNetStateAt = 0;
 let lastBallNetStateAt = 0;
 let networkBallOwnerId = null;
+let localBallPredictionBlockedUntil = 0;
 let touchPointerId = null;
 let touchMoveVector = new THREE.Vector2();
-let multiplayerRooms = [
-  {
-    id: "classic-kiwi",
-    name: "kiwi classics",
-    ping: 38,
-    maxPlayers: 12,
-    players: [
-      { id: "host-kiwi", name: "kiwiHost", team: "red", score: 0 },
-      { id: "blue-rocket", name: "blueRocket", team: "blue", score: 0 },
-      { id: "spectator-1", name: "mateo", team: "spectators", score: 0 },
-    ],
-  },
-  {
-    id: "payne-after",
-    name: "after office payne",
-    ping: 71,
-    maxPlayers: 16,
-    players: [
-      { id: "after-1", name: "fer", team: "red", score: 0 },
-      { id: "after-2", name: "nati", team: "blue", score: 0 },
-      { id: "after-3", name: "joaco", team: "spectators", score: 0 },
-      { id: "after-4", name: "lu", team: "spectators", score: 0 },
-    ],
-  },
-];
+let lobbyPreviewMode = false;
+let multiplayerRooms = [];
 
 let celebrationRenderer;
 let celebrationScene;
@@ -1069,7 +1047,12 @@ function emitBallState() {
 function applyNetworkBallState(state = {}) {
   if (!usesNetworkBallAuthority() || isOnlineHost() || !ball || !ballVelocity) return;
   networkBallOwnerId = state.ownerId || null;
-  if (networkBallOwnerId === getLocalPlayerId() && !proModeEnabled && player?.visible) {
+  if (
+    networkBallOwnerId === getLocalPlayerId()
+    && performance.now() > localBallPredictionBlockedUntil
+    && !proModeEnabled
+    && player?.visible
+  ) {
     ballControlled = true;
     ballOwner = player;
     ballVerticalVelocity = 0;
@@ -1240,7 +1223,7 @@ function setupGame() {
   score = 0;
   redScore = 0;
   blueScore = 0;
-  remaining = multiplayerMode ? (Number(roomTimeInput?.value) || 3) * 60 : Infinity;
+  remaining = multiplayerMode && !lobbyPreviewMode ? (Number(roomTimeInput?.value) || 3) * 60 : Infinity;
   if (multiplayerMode && activeRoom?.matchEndsAt) {
     remaining = Math.max(0, (Number(activeRoom.matchEndsAt) - Date.now()) / 1000);
   }
@@ -1263,12 +1246,14 @@ function setupGame() {
   ballTrails = [];
   goalCooldown = 0;
   ended = false;
-  cameraMode = multiplayerMode && !player.visible ? "broadcast" : "third";
+  cameraMode = lobbyPreviewMode || (multiplayerMode && !player.visible) ? "broadcast" : "third";
   phraseTimer = 0;
   scoreEl.textContent = multiplayerMode ? "Rojo 0 - 0 Azul" : "0";
   updateStadiumScoreboard();
   updateTimer();
-  momentEl.textContent = multiplayerMode ? "Multijugador local: sin arquero PC" : "Modo entrenamiento";
+  momentEl.textContent = lobbyPreviewMode
+    ? "Room abierta: acomodando equipos"
+    : (multiplayerMode ? "Multijugador local: sin arquero PC" : "Modo entrenamiento");
   if (roomGameBtn) roomGameBtn.style.display = multiplayerMode ? "block" : "none";
   setupPlayerTags();
   updateChargeMeter(0);
@@ -1276,6 +1261,10 @@ function setupGame() {
 }
 
 function updateTimer() {
+  if (lobbyPreviewMode) {
+    timerEl.textContent = "Room";
+    return;
+  }
   if (!multiplayerMode) {
     timerEl.textContent = "Entrenamiento";
     return;
@@ -1505,6 +1494,13 @@ function kickBall(power, label, chargeRatio = 0, liftPower = 0, soundKind = "sho
       soundKind,
       dir: { x: dir.x, z: dir.z },
     });
+    localBallPredictionBlockedUntil = performance.now() + 520;
+    ballVelocity.addScaledVector(dir, power);
+    ballVelocity.clampLength(0, 42);
+    ballVerticalVelocity = Math.max(ballVerticalVelocity, liftPower);
+    ballShotCharge = Math.max(ballShotCharge, chargeRatio);
+    ball.position.addScaledVector(dir, 0.35);
+    spawnBallTrail(dir, chargeRatio);
     momentEl.textContent = label;
     return;
   }
@@ -1795,7 +1791,12 @@ function updateBall(dt) {
   ballMagnetCooldown = Math.max(0, ballMagnetCooldown - dt);
 
   if (usesNetworkBallAuthority() && !isOnlineHost()) {
-    if (networkBallOwnerId === getLocalPlayerId() && !proModeEnabled && player?.visible) {
+    if (
+      networkBallOwnerId === getLocalPlayerId()
+      && performance.now() > localBallPredictionBlockedUntil
+      && !proModeEnabled
+      && player?.visible
+    ) {
       const ballRadius = 0.42;
       const minX = -field.width / 2 + ballRadius;
       const maxX = field.width / 2 - ballRadius;
@@ -2083,7 +2084,7 @@ function animateGame() {
   gameFrame = requestAnimationFrame(animateGame);
   const dt = Math.min(clock.getDelta(), 0.04);
 
-  if (multiplayerMode && !activeRoom?.matchEndsAt) remaining -= dt;
+  if (multiplayerMode && !lobbyPreviewMode && !activeRoom?.matchEndsAt) remaining -= dt;
   updateTimer();
   phraseTimer -= dt;
   if (phraseTimer <= 0) {
@@ -2091,7 +2092,7 @@ function animateGame() {
     phraseTimer = 4 + Math.random() * 2;
   }
 
-  updatePlayer(dt);
+  if (!lobbyPreviewMode) updatePlayer(dt);
   updateBall(dt);
   updateBallTrails(dt);
   updateKickArrow();
@@ -2099,12 +2100,14 @@ function animateGame() {
   updateCamera(dt);
   updateChargeMeter(dt);
   updatePlayerTags();
-  emitLocalPlayerState();
-  emitBallState();
+  if (!lobbyPreviewMode) {
+    emitLocalPlayerState();
+    emitBallState();
+  }
 
   renderer.render(scene, camera);
 
-  if (multiplayerMode && remaining <= 0 && !ended && !usesNetworkBallAuthority()) {
+  if (multiplayerMode && !lobbyPreviewMode && remaining <= 0 && !ended && !usesNetworkBallAuthority()) {
     ended = true;
     finishMatch();
   }
@@ -2183,6 +2186,12 @@ function showMultiplayerFinalBanner() {
   goalBanner.classList.add("show");
 }
 
+function showRoomLobbyPreview() {
+  if (!activeRoom) return;
+  startGame({ multiplayer: true, lobbyPreview: true });
+  openRoomOverlay();
+}
+
 function finishMatch() {
   keys.clear();
   clearPlayerTags();
@@ -2191,13 +2200,12 @@ function finishMatch() {
   stopGameAudio();
   if (multiplayerMode) {
     showMultiplayerFinalBanner();
-    multiplayerMode = false;
     roomOverlayOpen = false;
     roomScreen.classList.remove("is-overlay");
     setTimeout(() => {
       goalBanner.classList.remove("show", "final-result");
       renderRoom();
-      showScreen(roomScreen);
+      showRoomLobbyPreview();
     }, 2000);
     return;
   }
@@ -2242,6 +2250,20 @@ function animateCelebration() {
 function renderRoomList() {
   if (!roomList) return;
   roomList.innerHTML = "";
+  if (!onlineMode || !socket?.connected) {
+    const empty = document.createElement("div");
+    empty.className = "room-empty";
+    empty.textContent = "Desconectado. Pegá la URL del servidor y tocá Conectar.";
+    roomList.appendChild(empty);
+    return;
+  }
+  if (multiplayerRooms.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "room-empty";
+    empty.textContent = "No hay rooms creadas todavia.";
+    roomList.appendChild(empty);
+    return;
+  }
   multiplayerRooms.forEach((room) => {
     const row = document.createElement("button");
     row.className = "room-row";
@@ -2264,8 +2286,7 @@ function renderRoomList() {
               startGame({ multiplayer: true });
               openRoomOverlay();
             } else {
-              renderRoom();
-              showScreen(roomScreen);
+              showRoomLobbyPreview();
             }
           } else {
             updateServerStatus(response?.error || "No pude entrar");
@@ -2341,11 +2362,14 @@ function createRoom() {
       }
       activeRoom = response.room;
       selectedPlayerId = socket.id;
-      renderRoom();
-      showScreen(roomScreen);
+      showRoomLobbyPreview();
     });
     return;
   }
+
+  updateServerStatus("Conectate al servidor para crear rooms");
+  renderRoomList();
+  return;
 
   const maxPlayers = THREE.MathUtils.clamp(Number(roomMaxInput.value) || 12, 2, 16);
   const room = {
@@ -2368,8 +2392,7 @@ function openRoom(roomId) {
   }
   selectedPlayerId = activeRoom?.players[0]?.id || null;
   roomLocked = false;
-  renderRoom();
-  showScreen(roomScreen);
+  showRoomLobbyPreview();
 }
 
 function renderPlayers(container, team) {
@@ -2552,12 +2575,14 @@ function startGame(options = {}) {
   clearPlayerTags();
   roomOverlayOpen = false;
   multiplayerMode = Boolean(options.multiplayer);
+  lobbyPreviewMode = Boolean(options.lobbyPreview);
   showScreen(gameScreen);
-  startStadiumAudio();
+  if (lobbyPreviewMode) stopGameAudio();
+  else startStadiumAudio();
   setupGame();
   if (multiplayerMode) {
     updateTimer();
-    momentEl.textContent = "Multijugador local: sin arquero PC";
+    momentEl.textContent = lobbyPreviewMode ? "Room abierta: acomodando equipos" : "Multijugador local: sin arquero PC";
   }
 }
 
@@ -2820,8 +2845,7 @@ if (sharedServerUrl && sharedRoomId) {
             startGame({ multiplayer: true });
             openRoomOverlay();
           } else {
-            renderRoom();
-            showScreen(roomScreen);
+            showRoomLobbyPreview();
           }
         }
       });
