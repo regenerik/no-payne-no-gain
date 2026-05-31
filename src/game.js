@@ -144,6 +144,12 @@ let lastNetStateAt = 0;
 let lastBallNetStateAt = 0;
 let networkBallOwnerId = null;
 let localBallPredictionBlockedUntil = 0;
+let lastNetworkBallSeq = 0;
+let pendingLocalKickId = null;
+let lastAppliedKickId = null;
+let localKickSeq = 0;
+let networkBallTarget = new THREE.Vector3(0, 0.42, 0);
+let networkBallVelocity = new THREE.Vector3();
 let touchPointerId = null;
 let touchMoveVector = new THREE.Vector2();
 let lobbyPreviewMode = false;
@@ -1008,9 +1014,26 @@ function applyRemotePlayerState(playerId, state) {
   if (!multiplayerMode || !state || playerId === getLocalPlayerId()) return;
   const actor = multiplayerActors.find((unit) => unit.userData.playerId === playerId);
   if (!actor) return;
-  actor.position.set(state.x, state.y || 0, state.z);
-  actor.rotation.y = state.angle || 0;
-  animatePlayerRun(actor, 0.016, Boolean(state.moving));
+  actor.userData.netTarget ||= new THREE.Vector3();
+  actor.userData.netTarget.set(state.x, state.y || 0, state.z);
+  actor.userData.netAngle = state.angle || 0;
+  actor.userData.netMoving = Boolean(state.moving);
+  actor.userData.netUpdatedAt = performance.now();
+}
+
+function updateRemoteActors(dt) {
+  if (!multiplayerMode) return;
+  multiplayerActors.forEach((actor) => {
+    if (!actor.userData.netTarget) return;
+    const blend = 1 - Math.pow(0.0009, dt);
+    actor.position.lerp(actor.userData.netTarget, blend);
+    const angleDelta = Math.atan2(
+      Math.sin((actor.userData.netAngle || 0) - actor.rotation.y),
+      Math.cos((actor.userData.netAngle || 0) - actor.rotation.y)
+    );
+    actor.rotation.y += angleDelta * blend;
+    animatePlayerRun(actor, dt, Boolean(actor.userData.netMoving));
+  });
 }
 
 function emitLocalPlayerState() {
@@ -1041,14 +1064,23 @@ function emitBallState() {
     vy: ballVerticalVelocity,
     charge: ballShotCharge,
     ownerId: ballOwner?.userData?.playerId || (ballOwner === player ? getLocalPlayerId() : null),
+    lastKickId: lastAppliedKickId,
   });
 }
 
 function applyNetworkBallState(state = {}) {
   if (!usesNetworkBallAuthority() || isOnlineHost() || !ball || !ballVelocity) return;
+  const seq = Number(state.seq) || 0;
+  if (seq && seq <= lastNetworkBallSeq) return;
+  if (seq) lastNetworkBallSeq = seq;
   networkBallOwnerId = state.ownerId || null;
+  if (pendingLocalKickId && state.lastKickId === pendingLocalKickId) {
+    pendingLocalKickId = null;
+    localBallPredictionBlockedUntil = performance.now() + 180;
+  }
   if (
     networkBallOwnerId === getLocalPlayerId()
+    && !pendingLocalKickId
     && performance.now() > localBallPredictionBlockedUntil
     && !proModeEnabled
     && player?.visible
@@ -1059,12 +1091,14 @@ function applyNetworkBallState(state = {}) {
     ballShotCharge = 0;
     return;
   }
-  ball.position.set(
+  networkBallTarget.set(
     Number(state.x) || 0,
     Number(state.y) || 0.42,
     Number(state.z) || 0
   );
-  ballVelocity.set(Number(state.vx) || 0, 0, Number(state.vz) || 0);
+  networkBallVelocity.set(Number(state.vx) || 0, 0, Number(state.vz) || 0);
+  if (ball.position.distanceTo(networkBallTarget) > 8) ball.position.copy(networkBallTarget);
+  ballVelocity.copy(networkBallVelocity);
   ballVerticalVelocity = Number(state.vy) || 0;
   ballShotCharge = Number(state.charge) || 0;
   ballControlled = false;
@@ -1081,6 +1115,7 @@ function applyNetworkKickRequest(kick = {}) {
   if (dir.lengthSq() < 0.001) dir.copy(ball.position).sub(actor.position).setY(0);
   if (dir.lengthSq() < 0.001) return;
   dir.normalize();
+  lastAppliedKickId = kick.kickId || lastAppliedKickId;
   playKickSound(kick.soundKind || "shot", chargeRatio);
   ballControlled = false;
   ballOwner = null;
@@ -1152,6 +1187,9 @@ function addMultiplayerActors() {
       if (roomPlayer.state) {
         actor.position.set(roomPlayer.state.x, roomPlayer.state.y || 0, roomPlayer.state.z);
         actor.rotation.y = roomPlayer.state.angle || actor.rotation.y;
+        actor.userData.netTarget = actor.position.clone();
+        actor.userData.netAngle = actor.rotation.y;
+        actor.userData.netMoving = Boolean(roomPlayer.state.moving);
       }
       scene.add(actor);
       multiplayerActors.push(actor);
@@ -1230,6 +1268,11 @@ function setupGame() {
   ballVelocity = new THREE.Vector3();
   ballVerticalVelocity = 0;
   ballShotCharge = 0;
+  networkBallTarget.set(0, 0.42, multiplayerMode ? 0 : -29.6);
+  networkBallVelocity.set(0, 0, 0);
+  lastNetworkBallSeq = 0;
+  pendingLocalKickId = null;
+  lastAppliedKickId = null;
   spaceChargeStart = null;
   chargeMeterOpacity = 0;
   chargeMeterRatio = 0;
@@ -1487,7 +1530,9 @@ function kickBall(power, label, chargeRatio = 0, liftPower = 0, soundKind = "sho
   networkBallOwnerId = null;
   ballMagnetCooldown = 0.58 + chargeRatio * 0.22;
   if (usesNetworkBallAuthority() && !isOnlineHost()) {
+    pendingLocalKickId = `kick-${getLocalPlayerId()}-${++localKickSeq}`;
     socket.emit("ball:kick", {
+      kickId: pendingLocalKickId,
       power,
       chargeRatio,
       liftPower,
@@ -1495,6 +1540,7 @@ function kickBall(power, label, chargeRatio = 0, liftPower = 0, soundKind = "sho
       dir: { x: dir.x, z: dir.z },
     });
     localBallPredictionBlockedUntil = performance.now() + 520;
+    networkBallOwnerId = null;
     ballVelocity.addScaledVector(dir, power);
     ballVelocity.clampLength(0, 42);
     ballVerticalVelocity = Math.max(ballVerticalVelocity, liftPower);
@@ -1793,6 +1839,7 @@ function updateBall(dt) {
   if (usesNetworkBallAuthority() && !isOnlineHost()) {
     if (
       networkBallOwnerId === getLocalPlayerId()
+      && !pendingLocalKickId
       && performance.now() > localBallPredictionBlockedUntil
       && !proModeEnabled
       && player?.visible
@@ -1806,6 +1853,20 @@ function updateBall(dt) {
       ballOwner = player;
       updateControlledBall(player, dt, minX, maxX, minZ, maxZ);
       return;
+    }
+    if (!pendingLocalKickId) {
+      const blend = 1 - Math.pow(0.0018, dt);
+      ball.position.lerp(networkBallTarget, blend);
+      ballVelocity.lerp(networkBallVelocity, blend);
+    } else {
+      ball.position.addScaledVector(ballVelocity, dt);
+      ballVelocity.multiplyScalar(Math.pow(0.5, dt));
+      ballVerticalVelocity -= 9.8 * dt;
+      ball.position.y += ballVerticalVelocity * dt;
+      if (ball.position.y <= 0.42) {
+        ball.position.y = 0.42;
+        ballVerticalVelocity = 0;
+      }
     }
     ball.rotation.x += ballVelocity.z * dt * 2.4;
     ball.rotation.z -= ballVelocity.x * dt * 2.4;
@@ -2093,6 +2154,7 @@ function animateGame() {
   }
 
   if (!lobbyPreviewMode) updatePlayer(dt);
+  updateRemoteActors(dt);
   updateBall(dt);
   updateBallTrails(dt);
   updateKickArrow();
