@@ -152,6 +152,7 @@ let networkBallTarget = new THREE.Vector3(0, 0.42, 0);
 let networkBallVelocity = new THREE.Vector3();
 let touchPointerId = null;
 let touchMoveVector = new THREE.Vector2();
+let kickoffLockUntil = 0;
 let lobbyPreviewMode = false;
 let multiplayerRooms = [];
 
@@ -1014,8 +1015,12 @@ function applyRemotePlayerState(playerId, state) {
   if (!multiplayerMode || !state || playerId === getLocalPlayerId()) return;
   const actor = multiplayerActors.find((unit) => unit.userData.playerId === playerId);
   if (!actor) return;
+  const seq = Number(state.seq) || 0;
+  if (seq && actor.userData.netSeq && seq <= actor.userData.netSeq) return;
+  if (seq) actor.userData.netSeq = seq;
   actor.userData.netTarget ||= new THREE.Vector3();
   actor.userData.netTarget.set(state.x, state.y || 0, state.z);
+  if (actor.position.distanceTo(actor.userData.netTarget) > 7) actor.position.copy(actor.userData.netTarget);
   actor.userData.netAngle = state.angle || 0;
   actor.userData.netMoving = Boolean(state.moving);
   actor.userData.netUpdatedAt = performance.now();
@@ -1041,7 +1046,7 @@ function emitLocalPlayerState() {
   const now = performance.now();
   if (now - lastNetStateAt < 50) return;
   lastNetStateAt = now;
-  socket.emit("player:state", {
+  (socket.volatile || socket).emit("player:state", {
     x: player.position.x,
     y: player.position.y,
     z: player.position.z,
@@ -1055,7 +1060,7 @@ function emitBallState() {
   const now = performance.now();
   if (now - lastBallNetStateAt < 33) return;
   lastBallNetStateAt = now;
-  socket.emit("ball:state", {
+  (socket.volatile || socket).emit("ball:state", {
     x: ball.position.x,
     y: ball.position.y,
     z: ball.position.z,
@@ -1074,6 +1079,7 @@ function applyNetworkBallState(state = {}) {
   if (seq && seq <= lastNetworkBallSeq) return;
   if (seq) lastNetworkBallSeq = seq;
   networkBallOwnerId = state.ownerId || null;
+  if (performance.now() < kickoffLockUntil) networkBallOwnerId = null;
   if (pendingLocalKickId && state.lastKickId === pendingLocalKickId) {
     pendingLocalKickId = null;
     localBallPredictionBlockedUntil = performance.now() + 180;
@@ -1159,6 +1165,17 @@ function applyNetworkScore(payload = {}) {
   ballControlled = false;
   ballOwner = null;
   ballMagnetCooldown = 0;
+  networkBallOwnerId = null;
+  pendingLocalKickId = null;
+  lastAppliedKickId = null;
+  localBallPredictionBlockedUntil = performance.now() + 1400;
+  kickoffLockUntil = performance.now() + 1350;
+  ball.position.set(0, 0.42, 0);
+  ballVelocity.set(0, 0, 0);
+  networkBallTarget.set(0, 0.42, 0);
+  networkBallVelocity.set(0, 0, 0);
+  ballVerticalVelocity = 0;
+  ballShotCharge = 0;
   goalCooldown = 1.15;
   setTimeout(() => {
     if (!ended) {
@@ -1624,6 +1641,11 @@ function celebrateGoal(scoringTeam = "payne") {
   ballShotCharge = 0;
   ballControlled = false;
   ballOwner = null;
+  networkBallOwnerId = null;
+  pendingLocalKickId = null;
+  lastAppliedKickId = null;
+  localBallPredictionBlockedUntil = performance.now() + 1400;
+  kickoffLockUntil = performance.now() + 1350;
   ballMagnetCooldown = 0;
   goalCooldown = 1.15;
   setTimeout(() => {
@@ -1647,10 +1669,14 @@ function celebrateGoal(scoringTeam = "payne") {
       }
       ball.position.set(0, 0.42, multiplayerMode ? 0 : 0.8);
       ballVelocity.set(0, 0, 0);
+      networkBallTarget.set(0, 0.42, multiplayerMode ? 0 : 0.8);
+      networkBallVelocity.set(0, 0, 0);
       ballVerticalVelocity = 0;
       ballShotCharge = 0;
       ballControlled = false;
       ballOwner = null;
+      networkBallOwnerId = null;
+      pendingLocalKickId = null;
       ballMagnetCooldown = 0;
       momentEl.textContent = multiplayerMode ? "Saque desde el centro" : "Saca Payne desde el centro";
     }
@@ -1835,6 +1861,11 @@ function updateBall(dt) {
   }
 
   ballMagnetCooldown = Math.max(0, ballMagnetCooldown - dt);
+  if (performance.now() < kickoffLockUntil) {
+    ballControlled = false;
+    ballOwner = null;
+    networkBallOwnerId = null;
+  }
 
   if (usesNetworkBallAuthority() && !isOnlineHost()) {
     if (
