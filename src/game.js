@@ -883,9 +883,13 @@ function getLocalMultiplayerStartPosition() {
   return getTeamStartPosition(localPlayer.team, teamIndex, teamPlayers.length);
 }
 
+function getLocalPlayerId() {
+  return onlineMode && socket?.id ? socket.id : "local-host";
+}
+
 function getLocalRoomPlayer() {
   if (!activeRoom) return { id: "local-host", name: "davo", team: "red", score: 0 };
-  return activeRoom.players.find((roomPlayer) => roomPlayer.id === "local-host") || activeRoom.players[0];
+  return activeRoom.players.find((roomPlayer) => roomPlayer.id === getLocalPlayerId()) || activeRoom.players[0];
 }
 
 function getInitialPlayerAngle() {
@@ -934,7 +938,7 @@ function syncMultiplayerTeamsToField() {
 }
 
 function applyRemotePlayerState(playerId, state) {
-  if (!multiplayerMode || !state || playerId === socket?.id) return;
+  if (!multiplayerMode || !state || playerId === getLocalPlayerId()) return;
   const actor = multiplayerActors.find((unit) => unit.userData.playerId === playerId);
   if (!actor) return;
   actor.position.set(state.x, state.y || 0, state.z);
@@ -963,7 +967,7 @@ function addMultiplayerActors() {
   ["red", "blue"].forEach((team) => {
     const teamPlayers = activeRoom.players.filter((roomPlayer) => roomPlayer.team === team);
     teamPlayers.forEach((roomPlayer, index) => {
-      if (roomPlayer.id === "local-host") return;
+      if (roomPlayer.id === getLocalPlayerId()) return;
       const actor = createPlayer(false, team);
       actor.position.copy(getTeamStartPosition(team, index, teamPlayers.length));
       actor.rotation.y = team === "red" ? 0 : Math.PI;
@@ -2023,7 +2027,7 @@ function createRoom() {
 
 function openRoom(roomId) {
   activeRoom = multiplayerRooms.find((room) => room.id === roomId) || multiplayerRooms[0];
-  if (activeRoom && !activeRoom.players.some((roomPlayer) => roomPlayer.id === "local-host")) {
+  if (!onlineMode && activeRoom && !activeRoom.players.some((roomPlayer) => roomPlayer.id === "local-host")) {
     activeRoom.players.push({ id: "local-host", name: "davo", team: "spectators", score: 0 });
   }
   selectedPlayerId = activeRoom?.players[0]?.id || null;
