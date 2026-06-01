@@ -748,13 +748,13 @@ h2 {
   right: 24px;
   bottom: 44px;
   display: grid;
-  grid-template-columns: repeat(2, minmax(104px, 1fr));
+  grid-template-columns: repeat(2, minmax(78px, 1fr));
   gap: 10px;
   pointer-events: auto;
 }
 
 .touch-actions button {
-  min-width: 112px;
+  min-width: 84px;
   min-height: 92px;
   padding: 0 10px;
 }
@@ -1051,18 +1051,32 @@ h2 {
   }
 
   .hud {
-    right: 12px;
-    left: 12px;
-    flex-wrap: wrap;
+    top: 8px;
+    right: 188px;
+    left: 8px;
+    gap: 5px;
+    flex-wrap: nowrap;
+    max-width: none;
   }
 
   .hud-panel {
-    flex: 1;
-    min-width: 88px;
+    min-width: 54px;
+    padding: 4px 6px;
+    border-radius: 6px;
   }
 
   .hud-panel.wide {
-    flex-basis: 100%;
+    display: none;
+  }
+
+  .hud-label {
+    font-size: 8px;
+    letter-spacing: 0.06em;
+  }
+
+  .hud strong {
+    margin-top: 1px;
+    font-size: 12px;
   }
 
   .multiplayer-shell {
@@ -1192,17 +1206,17 @@ h2 {
   .touch-actions {
     right: 22px;
     bottom: 18px;
-    grid-template-columns: repeat(4, 64px);
+    grid-template-columns: repeat(4, 48px);
     gap: 7px;
   }
 
   .touch-actions button,
   .touch-actions .touch-sprint,
   .touch-actions button:nth-child(4) {
-    min-width: 64px;
+    min-width: 48px;
     min-height: 64px;
-    padding: 0 6px;
-    font-size: 9px;
+    padding: 0 4px;
+    font-size: 8px;
   }
 
   .controls {
