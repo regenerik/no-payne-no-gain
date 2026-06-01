@@ -409,7 +409,8 @@ function createKitTexture(team = "neutral") {
     ctx.fillRect(0, 0, w, h);
     ctx.fillStyle = team === "neutral" ? "#101313" : "#f8fbff";
     ctx.fillRect(0, 0, w, 24);
-    ctx.fillRect(0, h - 24, w, 24);
+    ctx.fillStyle = "#101313";
+    ctx.fillRect(0, h - 20, w, 20);
     ctx.save();
     ctx.translate(w * 0.2, h * 0.2);
     ctx.rotate(-0.72);
@@ -525,8 +526,8 @@ function createPlayer(isHero = false, team = "red") {
   hair.position.y = 3.25;
   group.add(hair);
 
-  const shorts = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.45, 0.62), dark);
-  shorts.position.y = 1.24;
+  const shorts = new THREE.Mesh(new THREE.BoxGeometry(1.08, 0.4, 0.6), dark);
+  shorts.position.y = 1.14;
   group.add(shorts);
 
   for (const side of [-1, 1]) {
