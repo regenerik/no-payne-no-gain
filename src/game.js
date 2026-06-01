@@ -54,6 +54,7 @@ const touchStick = document.querySelector("#touchStick");
 const touchCameraBtn = document.querySelector("#touchCameraBtn");
 const touchProBtn = document.querySelector("#touchProBtn");
 const touchSoundBtn = document.querySelector("#touchSoundBtn");
+const touchSprintBtn = document.querySelector("#touchSprintBtn");
 const touchSoftBtn = document.querySelector("#touchSoftBtn");
 const touchPassBtn = document.querySelector("#touchPassBtn");
 const touchShotBtn = document.querySelector("#touchShotBtn");
@@ -81,10 +82,10 @@ const gameplayKeys = new Set([
   "KeyD",
   "KeyC",
   "KeyE",
+  "KeyQ",
   "KeyM",
   "KeyP",
   "ShiftLeft",
-  "ControlLeft",
   "Space",
 ]);
 
@@ -154,6 +155,7 @@ let networkBallVelocity = new THREE.Vector3();
 let touchPointerId = null;
 let touchMoveVector = new THREE.Vector2();
 let kickoffLockUntil = 0;
+let touchSprintActive = false;
 let lobbyPreviewMode = false;
 let multiplayerRooms = [];
 
@@ -2057,8 +2059,9 @@ function updatePlayer(dt) {
   const touchDir = getTouchMoveDirection();
   if (touchDir) {
     const analog = THREE.MathUtils.clamp(touchMoveVector.length(), 0.28, 1);
+    const touchSprintMultiplier = touchSprintActive ? 1.35 : 1;
     if (cameraMode === "broadcast") {
-      player.position.addScaledVector(touchDir, 10.5 * analog * dt);
+      player.position.addScaledVector(touchDir, 10.5 * analog * touchSprintMultiplier * dt);
       player.position.x = THREE.MathUtils.clamp(player.position.x, -field.width / 2 + 2, field.width / 2 - 2);
       player.position.z = THREE.MathUtils.clamp(player.position.z, -field.length / 2 + 1.1, field.length / 2 - 1.1);
       playerAngle = Math.atan2(touchDir.x, touchDir.z);
@@ -2078,7 +2081,7 @@ function updatePlayer(dt) {
     }
     if (Math.abs(touchThrottle) > 0.08) {
       const forward = new THREE.Vector3(Math.sin(playerAngle), 0, Math.cos(playerAngle));
-      player.position.addScaledVector(forward, touchThrottle * 10.5 * analog * dt);
+      player.position.addScaledVector(forward, touchThrottle * 10.5 * analog * touchSprintMultiplier * dt);
       playerMoveDir.copy(forward).multiplyScalar(Math.sign(touchThrottle)).normalize();
       player.position.x = THREE.MathUtils.clamp(player.position.x, -field.width / 2 + 2, field.width / 2 - 2);
       player.position.z = THREE.MathUtils.clamp(player.position.z, -field.length / 2 + 1.1, field.length / 2 - 1.1);
@@ -2764,6 +2767,18 @@ function setupTouchControls() {
     event.preventDefault();
     toggleStadiumSound();
   });
+  touchSprintBtn?.addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+    touchSprintActive = true;
+    touchSprintBtn.classList.add("is-active");
+  });
+  ["pointerup", "pointercancel", "lostpointercapture", "pointerleave"].forEach((eventName) => {
+    touchSprintBtn?.addEventListener(eventName, (event) => {
+      event.preventDefault();
+      touchSprintActive = false;
+      touchSprintBtn.classList.remove("is-active");
+    });
+  });
   touchSoftBtn?.addEventListener("pointerdown", (event) => {
     event.preventDefault();
     kickBall(16.66, "Payne mete pase alto", 0, 8.4, "pass");
@@ -2872,7 +2887,7 @@ window.addEventListener("keydown", (event) => {
   }
   keys.add(event.code);
   if (event.repeat) return;
-  if (event.code === "ControlLeft") {
+  if (event.code === "KeyQ") {
     kickBall(16.66, "Payne mete pase alto", 0, 8.4, "pass");
   }
   if (event.code === "KeyE" && !event.ctrlKey) {
