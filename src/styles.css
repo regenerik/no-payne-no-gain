@@ -748,6 +748,7 @@ h2 {
   right: 24px;
   bottom: 44px;
   display: grid;
+  grid-template-columns: repeat(2, minmax(104px, 1fr));
   gap: 10px;
   pointer-events: auto;
 }
@@ -759,7 +760,6 @@ h2 {
 }
 
 .touch-actions .touch-sprint {
-  min-height: 58px;
   background: rgba(247, 201, 72, 0.82);
   color: #121611;
 }
@@ -769,7 +769,7 @@ h2 {
   box-shadow: 0 0 18px rgba(247, 201, 72, 0.45), inset 0 0 0 2px rgba(255, 255, 255, 0.58);
 }
 
-.touch-actions button:nth-child(2) {
+.touch-actions button:nth-child(1) {
   background: rgba(43, 95, 142, 0.78);
 }
 
@@ -777,7 +777,7 @@ h2 {
   background: rgba(41, 122, 84, 0.78);
 }
 
-.touch-actions button:nth-child(4) {
+.touch-actions button:nth-child(2) {
   background: rgba(188, 52, 60, 0.82);
 }
 

@@ -1545,6 +1545,7 @@ function kickBall(power, label, chargeRatio = 0, liftPower = 0, soundKind = "sho
 
   const dir = ballDirectionFromPayne();
   playKickSound(soundKind, chargeRatio);
+  vibrateKick(soundKind === "shot" ? 28 : 14);
   ballControlled = false;
   ballOwner = null;
   networkBallOwnerId = null;
@@ -1597,6 +1598,11 @@ function releaseChargedShot() {
 
 function beginChargedShot() {
   if (spaceChargeStart === null) spaceChargeStart = performance.now();
+}
+
+function vibrateKick(duration = 14) {
+  if (!("vibrate" in navigator) || !document.body.classList.contains("touch-enabled")) return;
+  navigator.vibrate(duration);
 }
 
 function toggleCameraMode() {
@@ -2153,12 +2159,17 @@ function updatePlayer(dt) {
 
 function updateCamera(dt) {
   if (cameraMode === "broadcast") {
-    if (camera.fov !== 58) {
-      camera.fov = 58;
+    const portraitTouch = document.body.classList.contains("touch-enabled") && window.innerHeight > window.innerWidth;
+    const targetFov = portraitTouch ? 68 : 58;
+    if (camera.fov !== targetFov) {
+      camera.fov = targetFov;
       camera.updateProjectionMatrix();
     }
-    const focusZ = THREE.MathUtils.clamp(ball.position.z, -field.length / 2 + 14, field.length / 2 - 14);
-    const desired = new THREE.Vector3(-field.width / 2 - 13, 17, focusZ);
+    const edgePad = portraitTouch ? 5 : 14;
+    const sideDistance = portraitTouch ? 17 : 13;
+    const cameraHeight = portraitTouch ? 20 : 17;
+    const focusZ = THREE.MathUtils.clamp(ball.position.z, -field.length / 2 + edgePad, field.length / 2 - edgePad);
+    const desired = new THREE.Vector3(-field.width / 2 - sideDistance, cameraHeight, focusZ);
     camera.position.lerp(desired, 1 - Math.pow(0.003, dt));
     camera.lookAt(0, 0.25, focusZ);
     return;
@@ -2872,6 +2883,11 @@ window.addEventListener("keydown", (event) => {
     return;
   }
   const playing = gameScreen.classList.contains("is-active");
+  if (event.code === "Escape" && playing && !multiplayerMode) {
+    event.preventDefault();
+    returnToMenu();
+    return;
+  }
   if (event.code === "Escape" && multiplayerMode && playing) {
     event.preventDefault();
     if (roomOverlayOpen) closeRoomOverlay();
@@ -2909,6 +2925,10 @@ window.addEventListener("keydown", (event) => {
 
 window.addEventListener("keyup", (event) => {
   const playing = gameScreen.classList.contains("is-active");
+  if (event.code === "Escape" && playing && !multiplayerMode) {
+    event.preventDefault();
+    return;
+  }
   if (event.code === "Escape" && multiplayerMode && playing) {
     event.preventDefault();
     return;
