@@ -48,16 +48,17 @@
             <div class="server-row">
               <label>
                 Servidor
-                <input id="serverUrlInput" type="url" placeholder="https://tu-server.onrender.com" />
+                <input id="serverUrlInput" type="url" placeholder="https://tu-server.onrender.com" readonly />
               </label>
+              <button id="useOtherServerBtn" class="secondary-button small-button use-other-button" type="button">Usar otro</button>
               <label>
                 Nombre
-                <input id="playerNameInput" type="text" value="davo" maxlength="18" />
+                <input id="playerNameInput" class="player-name-input" type="text" maxlength="18" placeholder="PONE TU NOMBRE ACA PARA CONECTARTE Y VER LAS SALAS" />
               </label>
-              <button id="connectServerBtn" class="secondary-button small-button" type="button">Conectar</button>
+              <button id="connectServerBtn" class="primary-button small-button connect-pulse" type="button">Conectar</button>
               <span id="serverStatus" class="server-status">Desconectado</span>
             </div>
-            <div class="create-row">
+            <div class="create-row is-hidden">
               <label>
                 Nombre de room
                 <input id="roomNameInput" type="text" value="davo's room" maxlength="22" />

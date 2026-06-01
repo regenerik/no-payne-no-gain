@@ -14,6 +14,7 @@ const roomGameBtn = document.querySelector("#roomGameBtn");
 const roomsBackBtn = document.querySelector("#roomsBackBtn");
 const createRoomBtn = document.querySelector("#createRoomBtn");
 const serverUrlInput = document.querySelector("#serverUrlInput");
+const useOtherServerBtn = document.querySelector("#useOtherServerBtn");
 const playerNameInput = document.querySelector("#playerNameInput");
 const connectServerBtn = document.querySelector("#connectServerBtn");
 const serverStatus = document.querySelector("#serverStatus");
@@ -71,6 +72,7 @@ const lines = [
   "Payne no corre: el pasto se mueve",
   "El arquero ya esta mirando al juez",
 ];
+const defaultServerUrl = "https://futbol-fun-server.onrender.com";
 const gameplayKeys = new Set([
   "ArrowUp",
   "ArrowDown",
@@ -142,8 +144,9 @@ let roomLocked = false;
 let roomOverlayOpen = false;
 let onlineMode = false;
 let socket = null;
-let socketServerUrl = localStorage.getItem("npgServerUrl") || "";
-let onlinePlayerName = localStorage.getItem("npgPlayerName") || "davo";
+let socketServerUrl = localStorage.getItem("npgServerUrl") || defaultServerUrl;
+let onlinePlayerName = localStorage.getItem("npgPlayerName") || "";
+if (onlinePlayerName.toLowerCase() === "davo") onlinePlayerName = "";
 let lastNetStateAt = 0;
 let lastBallNetStateAt = 0;
 let networkBallOwnerId = null;
@@ -307,6 +310,17 @@ function updateServerStatus(text) {
   if (serverStatus) serverStatus.textContent = text;
 }
 
+function updateConnectionUi() {
+  const connected = Boolean(onlineMode && socket?.connected);
+  document.querySelector(".create-row")?.classList.toggle("is-hidden", !connected);
+  connectServerBtn?.classList.toggle("connect-pulse", !connected);
+  if (connectServerBtn) connectServerBtn.textContent = connected ? "Conectado" : "Conectar";
+}
+
+function getEnteredPlayerName() {
+  return (playerNameInput?.value || "").trim().slice(0, 18);
+}
+
 function loadSocketClient(url) {
   return new Promise((resolve, reject) => {
     if (window.io) {
@@ -327,8 +341,14 @@ async function connectOnlineServer() {
     updateServerStatus("Falta URL");
     return;
   }
+  const enteredName = getEnteredPlayerName();
+  if (!enteredName) {
+    updateServerStatus("Poné tu nombre para conectar");
+    playerNameInput?.focus();
+    return;
+  }
 
-  onlinePlayerName = (playerNameInput.value || "davo").trim().slice(0, 18) || "davo";
+  onlinePlayerName = enteredName;
   localStorage.setItem("npgServerUrl", url);
   localStorage.setItem("npgPlayerName", onlinePlayerName);
   socketServerUrl = url;
@@ -341,6 +361,7 @@ async function connectOnlineServer() {
     socket.on("connect", () => {
       onlineMode = true;
       updateServerStatus(`Online ${socket.id.slice(0, 4)}`);
+      updateConnectionUi();
       socket.emit("rooms:list", (response) => {
         if (response?.ok) {
           multiplayerRooms = response.rooms;
@@ -351,6 +372,8 @@ async function connectOnlineServer() {
     socket.on("disconnect", () => {
       onlineMode = false;
       updateServerStatus("Offline");
+      updateConnectionUi();
+      renderRoomList();
     });
     socket.on("rooms:update", (rooms) => {
       if (!onlineMode) return;
@@ -400,6 +423,8 @@ async function connectOnlineServer() {
   } catch {
     onlineMode = false;
     updateServerStatus("Error servidor");
+    updateConnectionUi();
+    renderRoomList();
   }
 }
 
@@ -2398,6 +2423,15 @@ function renderRoomList() {
     const empty = document.createElement("div");
     empty.className = "room-empty";
     empty.textContent = "Desconectado. Pegá la URL del servidor y tocá Conectar.";
+    empty.textContent = "";
+    const text = document.createElement("span");
+    text.textContent = "Para ver la lista de rooms, pone tu nombre y dale a Conectar.";
+    const button = document.createElement("button");
+    button.className = "primary-button small-button connect-pulse";
+    button.type = "button";
+    button.textContent = "Conectar";
+    button.addEventListener("click", connectOnlineServer);
+    empty.append(text, button);
     roomList.appendChild(empty);
     return;
   }
@@ -2419,6 +2453,14 @@ function renderRoomList() {
     `;
     row.addEventListener("click", () => {
       if (onlineMode && socket?.connected) {
+        const enteredName = getEnteredPlayerName();
+        if (!enteredName) {
+          updateServerStatus("Pone tu nombre para entrar");
+          playerNameInput?.focus();
+          return;
+        }
+        onlinePlayerName = enteredName;
+        localStorage.setItem("npgPlayerName", onlinePlayerName);
         socket.emit("room:join", {
           roomId: room.id,
           playerName: onlinePlayerName,
@@ -2447,6 +2489,7 @@ function renderRoomList() {
 function openRooms() {
   setupAudio();
   stopAudio(menuMusic);
+  updateConnectionUi();
   renderRoomList();
   showScreen(roomsScreen);
   updateSpectatorNotice();
@@ -2494,6 +2537,14 @@ function toggleProModeInGame() {
 }
 
 function createRoom() {
+  const enteredName = getEnteredPlayerName();
+  if (!enteredName) {
+    updateServerStatus("Pone tu nombre para crear");
+    playerNameInput?.focus();
+    return;
+  }
+  onlinePlayerName = enteredName;
+  localStorage.setItem("npgPlayerName", onlinePlayerName);
   if (onlineMode && socket?.connected) {
     socket.emit("room:create", {
       name: roomNameInput.value,
@@ -2851,6 +2902,12 @@ playBtn.addEventListener("click", startGame);
 musicToggleBtn.addEventListener("click", toggleMute);
 multiplayerBtn.addEventListener("click", openRooms);
 connectServerBtn.addEventListener("click", connectOnlineServer);
+useOtherServerBtn?.addEventListener("click", () => {
+  serverUrlInput.readOnly = false;
+  serverUrlInput.focus();
+  serverUrlInput.select();
+  updateServerStatus("Pega otro servidor");
+});
 againBtn.addEventListener("click", startGame);
 roomGameBtn.addEventListener("click", openRoomOverlay);
 backMenuBtn.addEventListener("click", returnToMenu);
@@ -2994,8 +3051,10 @@ if (new URLSearchParams(window.location.search).has("broadcast")) {
 setupAudio();
 setupTouchControls();
 updateMusicButton();
-serverUrlInput.value = new URLSearchParams(window.location.search).get("server") || socketServerUrl;
+serverUrlInput.value = new URLSearchParams(window.location.search).get("server") || socketServerUrl || defaultServerUrl;
+serverUrlInput.readOnly = true;
 playerNameInput.value = onlinePlayerName;
+updateConnectionUi();
 
 const sharedRoomId = new URLSearchParams(window.location.search).get("room");
 const sharedServerUrl = new URLSearchParams(window.location.search).get("server");
