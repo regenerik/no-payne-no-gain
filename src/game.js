@@ -104,6 +104,7 @@ let camera;
 let clock;
 let player;
 let ball;
+let ballShadow;
 let kickArrow;
 let goalKeeper;
 let keeperState;
@@ -116,6 +117,7 @@ let blueScore = 0;
 let remaining = matchLength;
 let playerAngle = 0;
 let cameraMode = "third";
+let broadcastFocusZ = 0;
 let proModeEnabled = false;
 let multiplayerMode = false;
 let ballControlled = false;
@@ -1256,6 +1258,19 @@ function setupGame() {
   ball.position.set(0, 0.42, multiplayerMode ? 0 : -29.6);
   scene.add(ball);
 
+  ballShadow = new THREE.Mesh(
+    new THREE.CircleGeometry(0.52, 32),
+    new THREE.MeshBasicMaterial({
+      color: 0x020806,
+      transparent: true,
+      opacity: 0.34,
+      depthWrite: false,
+    })
+  );
+  ballShadow.rotation.x = -Math.PI / 2;
+  ballShadow.position.set(ball.position.x, 0.035, ball.position.z);
+  scene.add(ballShadow);
+
   kickArrow = createKickArrow();
   scene.add(kickArrow);
 
@@ -1310,6 +1325,7 @@ function setupGame() {
   goalCooldown = 0;
   ended = false;
   cameraMode = lobbyPreviewMode || (multiplayerMode && !player.visible) ? "broadcast" : "third";
+  broadcastFocusZ = ball.position.z;
   phraseTimer = 0;
   scoreEl.textContent = multiplayerMode ? "Rojo 0 - 0 Azul" : "0";
   updateStadiumScoreboard();
@@ -1607,6 +1623,7 @@ function vibrateKick(duration = 14) {
 
 function toggleCameraMode() {
   cameraMode = cameraMode === "third" ? "broadcast" : "third";
+  if (cameraMode === "broadcast" && ball) broadcastFocusZ = ball.position.z;
   momentEl.textContent = cameraMode === "broadcast" ? "Camara clasica activada" : "Camara Payne activada";
 }
 
@@ -2003,6 +2020,16 @@ function updateBall(dt) {
   ball.rotation.y += ballVelocity.length() * dt * 0.8;
 }
 
+function updateBallShadow() {
+  if (!ballShadow || !ball) return;
+  const height = Math.max(0, ball.position.y - 0.42);
+  const scale = 1 + Math.min(height * 0.22, 1.05);
+  ballShadow.position.set(ball.position.x, 0.035, ball.position.z);
+  ballShadow.scale.set(scale, scale, scale);
+  ballShadow.material.opacity = THREE.MathUtils.clamp(0.34 - height * 0.055, 0.08, 0.34);
+  ballShadow.visible = ball.visible;
+}
+
 function updateKickArrow() {
   if (!kickArrow || !player || !ball || goalCooldown > 0) return;
   const dir = ballDirectionFromPayne();
@@ -2168,7 +2195,14 @@ function updateCamera(dt) {
     const edgePad = portraitTouch ? 5 : 14;
     const sideDistance = portraitTouch ? 17 : 13;
     const cameraHeight = portraitTouch ? 20 : 17;
-    const focusZ = THREE.MathUtils.clamp(ball.position.z, -field.length / 2 + edgePad, field.length / 2 - edgePad);
+    const targetFocusZ = THREE.MathUtils.clamp(ball.position.z, -field.length / 2 + edgePad, field.length / 2 - edgePad);
+    const deadZone = portraitTouch ? 0.46 : 0.34;
+    const focusDelta = targetFocusZ - broadcastFocusZ;
+    if (Math.abs(focusDelta) > deadZone) {
+      const adjustedTarget = targetFocusZ - Math.sign(focusDelta) * deadZone;
+      broadcastFocusZ = THREE.MathUtils.lerp(broadcastFocusZ, adjustedTarget, 1 - Math.pow(0.002, dt));
+    }
+    const focusZ = broadcastFocusZ;
     const desired = new THREE.Vector3(-field.width / 2 - sideDistance, cameraHeight, focusZ);
     camera.position.lerp(desired, 1 - Math.pow(0.003, dt));
     camera.lookAt(0, 0.25, focusZ);
@@ -2202,6 +2236,7 @@ function animateGame() {
   if (!lobbyPreviewMode) updatePlayer(dt);
   updateRemoteActors(dt);
   updateBall(dt);
+  updateBallShadow();
   updateBallTrails(dt);
   updateKickArrow();
   updateGoalkeeper(dt);
