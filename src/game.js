@@ -2766,11 +2766,11 @@ function setupTouchControls() {
   });
   touchSoftBtn?.addEventListener("pointerdown", (event) => {
     event.preventDefault();
-    kickBall(13.26, "Payne adelanta pelota", 0, 0, "soft");
+    kickBall(16.66, "Payne mete pase alto", 0, 8.4, "pass");
   });
   touchPassBtn?.addEventListener("pointerdown", (event) => {
     event.preventDefault();
-    kickBall(13.88, "Payne mete un golpe corto", 0, 0.8, "pass");
+    kickBall(16.66, "Payne mete pase potente", 0, 0.8, "pass");
   });
   touchShotBtn?.addEventListener("pointerdown", (event) => {
     event.preventDefault();
@@ -2873,10 +2873,10 @@ window.addEventListener("keydown", (event) => {
   keys.add(event.code);
   if (event.repeat) return;
   if (event.code === "ControlLeft") {
-    kickBall(13.26, "Payne adelanta pelota", 0, 0, "soft");
+    kickBall(16.66, "Payne mete pase alto", 0, 8.4, "pass");
   }
   if (event.code === "KeyE" && !event.ctrlKey) {
-    kickBall(13.88, "Payne mete un golpe corto", 0, 0.8, "pass");
+    kickBall(16.66, "Payne mete pase potente", 0, 0.8, "pass");
   }
   if (event.code === "KeyC") {
     toggleCameraMode();
