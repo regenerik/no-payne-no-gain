@@ -53,6 +53,7 @@ const touchJoystick = document.querySelector("#touchJoystick");
 const touchStick = document.querySelector("#touchStick");
 const touchCameraBtn = document.querySelector("#touchCameraBtn");
 const touchProBtn = document.querySelector("#touchProBtn");
+const touchSoundBtn = document.querySelector("#touchSoundBtn");
 const touchSoftBtn = document.querySelector("#touchSoftBtn");
 const touchPassBtn = document.querySelector("#touchPassBtn");
 const touchShotBtn = document.querySelector("#touchShotBtn");
@@ -2758,6 +2759,10 @@ function setupTouchControls() {
   touchProBtn?.addEventListener("pointerdown", (event) => {
     event.preventDefault();
     toggleProModeInGame();
+  });
+  touchSoundBtn?.addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+    toggleStadiumSound();
   });
   touchSoftBtn?.addEventListener("pointerdown", (event) => {
     event.preventDefault();
