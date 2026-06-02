@@ -155,10 +155,6 @@ let lastNetworkBallSeq = 0;
 let pendingLocalKickId = null;
 let lastAppliedKickId = null;
 let localKickSeq = 0;
-let recentKickerId = null;
-let recentKickerIgnoreUntil = 0;
-let localPredictedKickId = null;
-let localKickReconcileUntil = 0;
 let networkBallTarget = new THREE.Vector3(0, 0.42, 0);
 let networkBallVelocity = new THREE.Vector3();
 let touchPointerId = null;
@@ -1174,20 +1170,6 @@ function applyNetworkBallState(state = {}) {
   if (pendingLocalKickId && state.lastKickId === pendingLocalKickId) {
     pendingLocalKickId = null;
     localBallPredictionBlockedUntil = performance.now() + 180;
-    localKickReconcileUntil = performance.now() + 360;
-  }
-  if (
-    state.lastKickId
-    && state.lastKickId === localPredictedKickId
-    && performance.now() < localKickReconcileUntil
-    && ball.position.distanceTo(new THREE.Vector3(Number(state.x) || 0, Number(state.y) || 0.42, Number(state.z) || 0)) < 6
-  ) {
-    ballVelocity.lerp(new THREE.Vector3(Number(state.vx) || 0, 0, Number(state.vz) || 0), 0.18);
-    ballVerticalVelocity = THREE.MathUtils.lerp(ballVerticalVelocity, Number(state.vy) || 0, 0.18);
-    ballShotCharge = Math.max(ballShotCharge, Number(state.charge) || 0);
-    ballControlled = false;
-    ballOwner = null;
-    return;
   }
   if (
     networkBallOwnerId === getLocalPlayerId()
@@ -1232,8 +1214,6 @@ function applyNetworkKickRequest(kick = {}) {
   dir.normalize();
   releaseKickoffIfNeeded(actor.userData?.team);
   lastAppliedKickId = kick.kickId || lastAppliedKickId;
-  recentKickerId = kick.playerId || null;
-  recentKickerIgnoreUntil = performance.now() + 360;
   playKickSound(kick.soundKind || "shot", chargeRatio);
   ballControlled = false;
   ballOwner = null;
@@ -1242,7 +1222,7 @@ function applyNetworkKickRequest(kick = {}) {
   ballVelocity.clampLength(0, 42);
   ballVerticalVelocity = Math.max(ballVerticalVelocity, Number(kick.liftPower) || 0);
   ballShotCharge = Math.max(ballShotCharge, chargeRatio);
-  ball.position.addScaledVector(dir, 0.62);
+  ball.position.addScaledVector(dir, 0.22);
   spawnBallTrail(dir, chargeRatio);
 }
 
@@ -1281,10 +1261,6 @@ function applyNetworkScore(payload = {}) {
   networkBallOwnerId = null;
   pendingLocalKickId = null;
   lastAppliedKickId = null;
-  recentKickerId = null;
-  recentKickerIgnoreUntil = 0;
-  localPredictedKickId = null;
-  localKickReconcileUntil = 0;
   localBallPredictionBlockedUntil = performance.now() + 1400;
   ball.position.set(0, 0.42, 0);
   ballVelocity.set(0, 0, 0);
@@ -1419,10 +1395,6 @@ function setupGame() {
   lastNetworkBallSeq = 0;
   pendingLocalKickId = null;
   lastAppliedKickId = null;
-  recentKickerId = null;
-  recentKickerIgnoreUntil = 0;
-  localPredictedKickId = null;
-  localKickReconcileUntil = 0;
   kickoffLocked = false;
   kickoffTeam = null;
   kickoffLockUntil = 0;
@@ -1686,16 +1658,12 @@ function kickBall(power, label, chargeRatio = 0, liftPower = 0, soundKind = "sho
   releaseKickoffIfNeeded(localTeam);
   playKickSound(soundKind, chargeRatio);
   vibrateKick(soundKind === "shot" ? 28 : 14);
-  recentKickerId = getLocalPlayerId();
-  recentKickerIgnoreUntil = performance.now() + 360;
   ballControlled = false;
   ballOwner = null;
   networkBallOwnerId = null;
   ballMagnetCooldown = 0.58 + chargeRatio * 0.22;
   if (usesNetworkBallAuthority() && !isOnlineHost()) {
     pendingLocalKickId = `kick-${getLocalPlayerId()}-${++localKickSeq}`;
-    localPredictedKickId = pendingLocalKickId;
-    localKickReconcileUntil = performance.now() + 720;
     socket.emit("ball:kick", {
       kickId: pendingLocalKickId,
       power,
@@ -1710,7 +1678,7 @@ function kickBall(power, label, chargeRatio = 0, liftPower = 0, soundKind = "sho
     ballVelocity.clampLength(0, 42);
     ballVerticalVelocity = Math.max(ballVerticalVelocity, liftPower);
     ballShotCharge = Math.max(ballShotCharge, chargeRatio);
-    ball.position.addScaledVector(dir, 0.62);
+    ball.position.addScaledVector(dir, 0.35);
     spawnBallTrail(dir, chargeRatio);
     momentEl.textContent = label;
     return;
@@ -1720,7 +1688,7 @@ function kickBall(power, label, chargeRatio = 0, liftPower = 0, soundKind = "sho
   ballVelocity.clampLength(0, 42);
   ballVerticalVelocity = Math.max(ballVerticalVelocity, liftPower);
   ballShotCharge = Math.max(ballShotCharge, chargeRatio);
-  ball.position.addScaledVector(dir, 0.62);
+  ball.position.addScaledVector(dir, 0.22);
   spawnBallTrail(dir, chargeRatio);
   momentEl.textContent = label;
 }
@@ -1799,10 +1767,6 @@ function celebrateGoal(scoringTeam = "payne") {
   networkBallOwnerId = null;
   pendingLocalKickId = null;
   lastAppliedKickId = null;
-  recentKickerId = null;
-  recentKickerIgnoreUntil = 0;
-  localPredictedKickId = null;
-  localKickReconcileUntil = 0;
   localBallPredictionBlockedUntil = performance.now() + 1400;
   if (!multiplayerMode) kickoffLockUntil = performance.now() + 1350;
   ballMagnetCooldown = 0;
@@ -1970,50 +1934,19 @@ function updateControlledBall(owner, dt, minX, maxX, minZ, maxZ) {
   return before;
 }
 
-function applyBallBodyCollisions(previousBallPosition = null) {
+function applyBallBodyCollisions() {
   if (!ball || ballControlled) return;
   const units = [player, ...multiplayerActors].filter((unit) => unit?.visible);
   units.forEach((unit) => {
-    const unitId = getUnitPlayerId(unit);
-    if (unitId && unitId === recentKickerId && performance.now() < recentKickerIgnoreUntil) return;
-
-    const start = previousBallPosition || ball.position;
-    const end = ball.position;
-    const segment = end.clone().sub(start);
-    const flatSegment = new THREE.Vector3(segment.x, 0, segment.z);
-    let closest = end.clone();
-    if (flatSegment.lengthSq() > 0.001) {
-      const toUnit = unit.position.clone().sub(start);
-      const t = THREE.MathUtils.clamp(
-        (toUnit.x * flatSegment.x + toUnit.z * flatSegment.z) / flatSegment.lengthSq(),
-        0,
-        1
-      );
-      closest = start.clone().addScaledVector(segment, t);
-    }
-
-    const impactY = closest.y;
-    if (impactY < 0.28 || impactY > 3.42) return;
-
-    const delta = closest.clone().sub(unit.position);
-    const horizontal = new THREE.Vector3(delta.x, 0, delta.z);
-    const distance = horizontal.length();
-    const minDistance = impactY < 1.2 ? 1.18 : impactY < 2.75 ? 1.08 : 0.84;
-    if (distance <= 0.001 || distance >= minDistance) return;
-
-    const pushDir = horizontal.normalize();
+    const delta = ball.position.clone().sub(unit.position);
+    delta.y = 0;
+    const distance = delta.length();
+    const minDistance = 1.22;
+    if (distance <= 0.001 || distance >= minDistance || ball.position.y > 1.1) return;
+    const pushDir = delta.normalize();
     const overlap = minDistance - distance;
-    ball.position.x = closest.x + pushDir.x * (minDistance + 0.035);
-    ball.position.z = closest.z + pushDir.z * (minDistance + 0.035);
-    const incomingAlongNormal = ballVelocity.dot(pushDir);
-    if (incomingAlongNormal < 0) {
-      ballVelocity.addScaledVector(pushDir, -incomingAlongNormal * 1.45);
-    }
-    ballVelocity.addScaledVector(pushDir, overlap * 10.5 + 2.8);
-    if (impactY > 1.1) {
-      ballVerticalVelocity = Math.max(ballVerticalVelocity * 0.35, 0.75);
-      ballShotCharge = Math.max(ballShotCharge, 0.18);
-    }
+    ball.position.addScaledVector(pushDir, overlap + 0.02);
+    ballVelocity.addScaledVector(pushDir, overlap * 9.5 + 2.5);
   });
 }
 
@@ -2082,8 +2015,7 @@ function updateBall(dt) {
       ballVelocity.lerp(networkBallVelocity, blend);
     } else {
       ball.position.addScaledVector(ballVelocity, dt);
-      ballVelocity.multiplyScalar(Math.pow(0.36, dt));
-      ballShotCharge *= Math.pow(0.34, dt);
+      ballVelocity.multiplyScalar(Math.pow(0.5, dt));
       ballVerticalVelocity -= 9.8 * dt;
       ball.position.y += ballVerticalVelocity * dt;
       if (ball.position.y <= 0.42) {
@@ -2161,7 +2093,7 @@ function updateBall(dt) {
     ballVerticalVelocity = 0;
   }
 
-  applyBallBodyCollisions(previousBallPosition);
+  applyBallBodyCollisions();
   handleKeeperBallCollision(previousBallPosition);
   releaseKickoffIfBallMoved();
 
