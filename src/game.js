@@ -155,6 +155,8 @@ let lastNetworkBallSeq = 0;
 let pendingLocalKickId = null;
 let lastAppliedKickId = null;
 let localKickSeq = 0;
+let recentKickerId = null;
+let recentKickerIgnoreUntil = 0;
 let networkBallTarget = new THREE.Vector3(0, 0.42, 0);
 let networkBallVelocity = new THREE.Vector3();
 let touchPointerId = null;
@@ -974,6 +976,12 @@ function getLocalPlayerId() {
   return onlineMode && socket?.id ? socket.id : "local-host";
 }
 
+function getUnitPlayerId(unit) {
+  if (!unit) return null;
+  if (unit === player) return getLocalPlayerId();
+  return unit.userData?.playerId || null;
+}
+
 function isOnlineHost() {
   return onlineMode && socket?.connected && activeRoom?.hostId === socket.id;
 }
@@ -1153,6 +1161,8 @@ function applyNetworkKickRequest(kick = {}) {
   if (dir.lengthSq() < 0.001) return;
   dir.normalize();
   lastAppliedKickId = kick.kickId || lastAppliedKickId;
+  recentKickerId = kick.playerId || null;
+  recentKickerIgnoreUntil = performance.now() + 360;
   playKickSound(kick.soundKind || "shot", chargeRatio);
   ballControlled = false;
   ballOwner = null;
@@ -1161,7 +1171,7 @@ function applyNetworkKickRequest(kick = {}) {
   ballVelocity.clampLength(0, 42);
   ballVerticalVelocity = Math.max(ballVerticalVelocity, Number(kick.liftPower) || 0);
   ballShotCharge = Math.max(ballShotCharge, chargeRatio);
-  ball.position.addScaledVector(dir, 0.22);
+  ball.position.addScaledVector(dir, 0.62);
   spawnBallTrail(dir, chargeRatio);
 }
 
@@ -1199,6 +1209,8 @@ function applyNetworkScore(payload = {}) {
   networkBallOwnerId = null;
   pendingLocalKickId = null;
   lastAppliedKickId = null;
+  recentKickerId = null;
+  recentKickerIgnoreUntil = 0;
   localBallPredictionBlockedUntil = performance.now() + 1400;
   kickoffLockUntil = performance.now() + 1350;
   ball.position.set(0, 0.42, 0);
@@ -1334,6 +1346,8 @@ function setupGame() {
   lastNetworkBallSeq = 0;
   pendingLocalKickId = null;
   lastAppliedKickId = null;
+  recentKickerId = null;
+  recentKickerIgnoreUntil = 0;
   spaceChargeStart = null;
   chargeMeterOpacity = 0;
   chargeMeterRatio = 0;
@@ -1588,6 +1602,8 @@ function kickBall(power, label, chargeRatio = 0, liftPower = 0, soundKind = "sho
   const dir = ballDirectionFromPayne();
   playKickSound(soundKind, chargeRatio);
   vibrateKick(soundKind === "shot" ? 28 : 14);
+  recentKickerId = getLocalPlayerId();
+  recentKickerIgnoreUntil = performance.now() + 360;
   ballControlled = false;
   ballOwner = null;
   networkBallOwnerId = null;
@@ -1608,7 +1624,7 @@ function kickBall(power, label, chargeRatio = 0, liftPower = 0, soundKind = "sho
     ballVelocity.clampLength(0, 42);
     ballVerticalVelocity = Math.max(ballVerticalVelocity, liftPower);
     ballShotCharge = Math.max(ballShotCharge, chargeRatio);
-    ball.position.addScaledVector(dir, 0.35);
+    ball.position.addScaledVector(dir, 0.68);
     spawnBallTrail(dir, chargeRatio);
     momentEl.textContent = label;
     return;
@@ -1618,7 +1634,7 @@ function kickBall(power, label, chargeRatio = 0, liftPower = 0, soundKind = "sho
   ballVelocity.clampLength(0, 42);
   ballVerticalVelocity = Math.max(ballVerticalVelocity, liftPower);
   ballShotCharge = Math.max(ballShotCharge, chargeRatio);
-  ball.position.addScaledVector(dir, 0.22);
+  ball.position.addScaledVector(dir, 0.62);
   spawnBallTrail(dir, chargeRatio);
   momentEl.textContent = label;
 }
@@ -1696,6 +1712,8 @@ function celebrateGoal(scoringTeam = "payne") {
   networkBallOwnerId = null;
   pendingLocalKickId = null;
   lastAppliedKickId = null;
+  recentKickerId = null;
+  recentKickerIgnoreUntil = 0;
   localBallPredictionBlockedUntil = performance.now() + 1400;
   kickoffLockUntil = performance.now() + 1350;
   ballMagnetCooldown = 0;
@@ -1866,6 +1884,9 @@ function applyBallBodyCollisions(previousBallPosition = null) {
   if (!ball || ballControlled) return;
   const units = [player, ...multiplayerActors].filter((unit) => unit?.visible);
   units.forEach((unit) => {
+    const unitId = getUnitPlayerId(unit);
+    if (unitId && unitId === recentKickerId && performance.now() < recentKickerIgnoreUntil) return;
+
     const start = previousBallPosition || ball.position;
     const end = ball.position;
     const segment = end.clone().sub(start);
