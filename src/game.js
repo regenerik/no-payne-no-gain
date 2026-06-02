@@ -157,11 +157,15 @@ let lastAppliedKickId = null;
 let localKickSeq = 0;
 let recentKickerId = null;
 let recentKickerIgnoreUntil = 0;
+let localPredictedKickId = null;
+let localKickReconcileUntil = 0;
 let networkBallTarget = new THREE.Vector3(0, 0.42, 0);
 let networkBallVelocity = new THREE.Vector3();
 let touchPointerId = null;
 let touchMoveVector = new THREE.Vector2();
 let kickoffLockUntil = 0;
+let kickoffLocked = false;
+let kickoffTeam = null;
 let touchSprintActive = false;
 let lobbyPreviewMode = false;
 let multiplayerRooms = [];
@@ -969,7 +973,7 @@ function getLocalMultiplayerStartPosition() {
   const localPlayer = getLocalRoomPlayer();
   const teamPlayers = activeRoom.players.filter((roomPlayer) => roomPlayer.team === localPlayer.team);
   const teamIndex = Math.max(0, teamPlayers.findIndex((roomPlayer) => roomPlayer.id === localPlayer.id));
-  return getTeamStartPosition(localPlayer.team, teamIndex, teamPlayers.length);
+  return getMultiplayerStartPositionFor(localPlayer, teamIndex, teamPlayers.length);
 }
 
 function getLocalPlayerId() {
@@ -980,6 +984,50 @@ function getUnitPlayerId(unit) {
   if (!unit) return null;
   if (unit === player) return getLocalPlayerId();
   return unit.userData?.playerId || null;
+}
+
+function getKickoffPlayerId() {
+  if (!activeRoom || !kickoffTeam) return null;
+  return activeRoom.players.find((roomPlayer) => roomPlayer.team === kickoffTeam)?.id || null;
+}
+
+function getMultiplayerStartPositionFor(roomPlayer, index, total) {
+  if (
+    kickoffLocked
+    && roomPlayer?.team === kickoffTeam
+    && roomPlayer.id === getKickoffPlayerId()
+  ) {
+    return new THREE.Vector3(0, 0, kickoffTeam === "red" ? -1.25 : 1.25);
+  }
+  return getTeamStartPosition(roomPlayer?.team, index, total);
+}
+
+function beginKickoffFor(scoringTeam) {
+  if (!multiplayerMode || !activeRoom) return;
+  kickoffTeam = scoringTeam === "red" ? "blue" : "red";
+  kickoffLocked = true;
+  kickoffLockUntil = performance.now() + 1350;
+}
+
+function releaseKickoffIfNeeded(kickerTeam) {
+  if (!kickoffLocked || !multiplayerMode) return;
+  if (kickerTeam !== kickoffTeam) return;
+  kickoffLocked = false;
+  kickoffTeam = null;
+  kickoffLockUntil = 0;
+}
+
+function releaseKickoffIfBallMoved() {
+  if (!kickoffLocked || !multiplayerMode || !ball) return;
+  const flatDistance = Math.hypot(ball.position.x, ball.position.z);
+  if (flatDistance > 0.9 || ballVelocity?.length() > 1.4) releaseKickoffIfNeeded(kickoffTeam);
+}
+
+function constrainUnitToKickoffHalf(unit) {
+  if (!kickoffLocked || !multiplayerMode || !unit?.visible) return;
+  const team = unit.userData?.team;
+  if (team === "red") unit.position.z = Math.min(unit.position.z, 0.35);
+  if (team === "blue") unit.position.z = Math.max(unit.position.z, -0.35);
 }
 
 function isOnlineHost() {
@@ -1059,6 +1107,10 @@ function applyRemotePlayerState(playerId, state) {
   if (seq) actor.userData.netSeq = seq;
   actor.userData.netTarget ||= new THREE.Vector3();
   actor.userData.netTarget.set(state.x, state.y || 0, state.z);
+  if (kickoffLocked) {
+    if (actor.userData.team === "red") actor.userData.netTarget.z = Math.min(actor.userData.netTarget.z, 0.35);
+    if (actor.userData.team === "blue") actor.userData.netTarget.z = Math.max(actor.userData.netTarget.z, -0.35);
+  }
   if (actor.position.distanceTo(actor.userData.netTarget) > 7) actor.position.copy(actor.userData.netTarget);
   actor.userData.netAngle = state.angle || 0;
   actor.userData.netMoving = Boolean(state.moving);
@@ -1122,6 +1174,20 @@ function applyNetworkBallState(state = {}) {
   if (pendingLocalKickId && state.lastKickId === pendingLocalKickId) {
     pendingLocalKickId = null;
     localBallPredictionBlockedUntil = performance.now() + 180;
+    localKickReconcileUntil = performance.now() + 360;
+  }
+  if (
+    state.lastKickId
+    && state.lastKickId === localPredictedKickId
+    && performance.now() < localKickReconcileUntil
+    && ball.position.distanceTo(new THREE.Vector3(Number(state.x) || 0, Number(state.y) || 0.42, Number(state.z) || 0)) < 6
+  ) {
+    ballVelocity.lerp(new THREE.Vector3(Number(state.vx) || 0, 0, Number(state.vz) || 0), 0.18);
+    ballVerticalVelocity = THREE.MathUtils.lerp(ballVerticalVelocity, Number(state.vy) || 0, 0.18);
+    ballShotCharge = Math.max(ballShotCharge, Number(state.charge) || 0);
+    ballControlled = false;
+    ballOwner = null;
+    return;
   }
   if (
     networkBallOwnerId === getLocalPlayerId()
@@ -1142,6 +1208,9 @@ function applyNetworkBallState(state = {}) {
     Number(state.z) || 0
   );
   networkBallVelocity.set(Number(state.vx) || 0, 0, Number(state.vz) || 0);
+  if (kickoffLocked && (Math.hypot(networkBallTarget.x, networkBallTarget.z) > 0.9 || networkBallVelocity.length() > 1.4)) {
+    releaseKickoffIfNeeded(kickoffTeam);
+  }
   if (ball.position.distanceTo(networkBallTarget) > 8) ball.position.copy(networkBallTarget);
   ballVelocity.copy(networkBallVelocity);
   ballVerticalVelocity = Number(state.vy) || 0;
@@ -1154,12 +1223,14 @@ function applyNetworkKickRequest(kick = {}) {
   if (!usesNetworkBallAuthority() || !isOnlineHost() || !ball || !ballVelocity) return;
   const actor = multiplayerActors.find((unit) => unit.userData.playerId === kick.playerId);
   if (!actor?.visible || actor.position.distanceTo(ball.position) > 3.65) return;
+  if (kickoffLocked && actor.userData?.team !== kickoffTeam) return;
   const chargeRatio = THREE.MathUtils.clamp(Number(kick.chargeRatio) || 0, 0, 1);
   const power = THREE.MathUtils.clamp(Number(kick.power) || 0, 0, 52);
   const dir = new THREE.Vector3(Number(kick.dir?.x) || 0, 0, Number(kick.dir?.z) || 0);
   if (dir.lengthSq() < 0.001) dir.copy(ball.position).sub(actor.position).setY(0);
   if (dir.lengthSq() < 0.001) return;
   dir.normalize();
+  releaseKickoffIfNeeded(actor.userData?.team);
   lastAppliedKickId = kick.kickId || lastAppliedKickId;
   recentKickerId = kick.playerId || null;
   recentKickerIgnoreUntil = performance.now() + 360;
@@ -1203,6 +1274,7 @@ function applyNetworkScore(payload = {}) {
   void goalBanner.offsetWidth;
   goalBanner.classList.add("show");
   momentEl.textContent = `${scoringTeam === "blue" ? "Azul" : "Rojo"} mete gol y el estadio entiende todo`;
+  beginKickoffFor(scoringTeam);
   ballControlled = false;
   ballOwner = null;
   ballMagnetCooldown = 0;
@@ -1211,8 +1283,9 @@ function applyNetworkScore(payload = {}) {
   lastAppliedKickId = null;
   recentKickerId = null;
   recentKickerIgnoreUntil = 0;
+  localPredictedKickId = null;
+  localKickReconcileUntil = 0;
   localBallPredictionBlockedUntil = performance.now() + 1400;
-  kickoffLockUntil = performance.now() + 1350;
   ball.position.set(0, 0.42, 0);
   ballVelocity.set(0, 0, 0);
   networkBallTarget.set(0, 0.42, 0);
@@ -1238,7 +1311,7 @@ function addMultiplayerActors() {
     teamPlayers.forEach((roomPlayer, index) => {
       if (roomPlayer.id === getLocalPlayerId()) return;
       const actor = createPlayer(false, team);
-      actor.position.copy(getTeamStartPosition(team, index, teamPlayers.length));
+      actor.position.copy(getMultiplayerStartPositionFor(roomPlayer, index, teamPlayers.length));
       actor.rotation.y = team === "red" ? 0 : Math.PI;
       actor.userData.name = roomPlayer.name;
       actor.userData.playerId = roomPlayer.id;
@@ -1348,6 +1421,11 @@ function setupGame() {
   lastAppliedKickId = null;
   recentKickerId = null;
   recentKickerIgnoreUntil = 0;
+  localPredictedKickId = null;
+  localKickReconcileUntil = 0;
+  kickoffLocked = false;
+  kickoffTeam = null;
+  kickoffLockUntil = 0;
   spaceChargeStart = null;
   chargeMeterOpacity = 0;
   chargeMeterRatio = 0;
@@ -1600,6 +1678,12 @@ function kickBall(power, label, chargeRatio = 0, liftPower = 0, soundKind = "sho
   }
 
   const dir = ballDirectionFromPayne();
+  const localTeam = player.userData?.team || getLocalRoomPlayer()?.team;
+  if (kickoffLocked && multiplayerMode && localTeam !== kickoffTeam) {
+    momentEl.textContent = `Saca ${kickoffTeam === "red" ? "Rojo" : "Azul"} desde el centro`;
+    return;
+  }
+  releaseKickoffIfNeeded(localTeam);
   playKickSound(soundKind, chargeRatio);
   vibrateKick(soundKind === "shot" ? 28 : 14);
   recentKickerId = getLocalPlayerId();
@@ -1610,6 +1694,8 @@ function kickBall(power, label, chargeRatio = 0, liftPower = 0, soundKind = "sho
   ballMagnetCooldown = 0.58 + chargeRatio * 0.22;
   if (usesNetworkBallAuthority() && !isOnlineHost()) {
     pendingLocalKickId = `kick-${getLocalPlayerId()}-${++localKickSeq}`;
+    localPredictedKickId = pendingLocalKickId;
+    localKickReconcileUntil = performance.now() + 720;
     socket.emit("ball:kick", {
       kickId: pendingLocalKickId,
       power,
@@ -1624,7 +1710,7 @@ function kickBall(power, label, chargeRatio = 0, liftPower = 0, soundKind = "sho
     ballVelocity.clampLength(0, 42);
     ballVerticalVelocity = Math.max(ballVerticalVelocity, liftPower);
     ballShotCharge = Math.max(ballShotCharge, chargeRatio);
-    ball.position.addScaledVector(dir, 0.68);
+    ball.position.addScaledVector(dir, 0.62);
     spawnBallTrail(dir, chargeRatio);
     momentEl.textContent = label;
     return;
@@ -1693,6 +1779,7 @@ function celebrateGoal(scoringTeam = "payne") {
   momentEl.textContent = multiplayerMode
     ? `${scoringTeam === "red" ? "Rojo" : "Azul"} mete gol y el estadio entiende todo`
     : "GOOOL. Esta vez la fisica tambien eligio a Payne";
+  if (multiplayerMode) beginKickoffFor(scoringTeam);
   if (goalKeeper) {
     const keeperDive = Math.random() > 0.5 ? -1 : 1;
     goalKeeper.rotation.z = keeperDive * 1.35;
@@ -1714,8 +1801,10 @@ function celebrateGoal(scoringTeam = "payne") {
   lastAppliedKickId = null;
   recentKickerId = null;
   recentKickerIgnoreUntil = 0;
+  localPredictedKickId = null;
+  localKickReconcileUntil = 0;
   localBallPredictionBlockedUntil = performance.now() + 1400;
-  kickoffLockUntil = performance.now() + 1350;
+  if (!multiplayerMode) kickoffLockUntil = performance.now() + 1350;
   ballMagnetCooldown = 0;
   goalCooldown = 1.15;
   setTimeout(() => {
@@ -1848,6 +1937,7 @@ function getBallOwnerCandidate(distanceLimit = 2.35) {
   let nearest = null;
   let nearestDistance = distanceLimit;
   candidates.forEach((unit) => {
+    if (kickoffLocked && multiplayerMode && getUnitPlayerId(unit) !== getKickoffPlayerId()) return;
     const delta = ball.position.clone().sub(unit.position);
     delta.y = 0;
     const distance = delta.length();
@@ -1992,7 +2082,8 @@ function updateBall(dt) {
       ballVelocity.lerp(networkBallVelocity, blend);
     } else {
       ball.position.addScaledVector(ballVelocity, dt);
-      ballVelocity.multiplyScalar(Math.pow(0.5, dt));
+      ballVelocity.multiplyScalar(Math.pow(0.36, dt));
+      ballShotCharge *= Math.pow(0.34, dt);
       ballVerticalVelocity -= 9.8 * dt;
       ball.position.y += ballVerticalVelocity * dt;
       if (ball.position.y <= 0.42) {
@@ -2003,6 +2094,7 @@ function updateBall(dt) {
     ball.rotation.x += ballVelocity.z * dt * 2.4;
     ball.rotation.z -= ballVelocity.x * dt * 2.4;
     ball.rotation.y += ballVelocity.length() * dt * 0.8;
+    releaseKickoffIfBallMoved();
     return;
   }
 
@@ -2071,6 +2163,7 @@ function updateBall(dt) {
 
   applyBallBodyCollisions(previousBallPosition);
   handleKeeperBallCollision(previousBallPosition);
+  releaseKickoffIfBallMoved();
 
   if (detectGoal(maxZ, minZ)) return;
 
@@ -2177,7 +2270,9 @@ function updatePlayer(dt) {
       player.position.y = Math.abs(Math.sin(performance.now() * 0.014)) * 0.08;
       player.rotation.y = playerAngle;
       animatePlayerRun(player, dt, true);
+      constrainUnitToKickoffHalf(player);
       resolvePlayerActorCollisions();
+      constrainUnitToKickoffHalf(player);
       return;
     }
 
@@ -2200,7 +2295,9 @@ function updatePlayer(dt) {
     }
     player.rotation.y = playerAngle;
     animatePlayerRun(player, dt, Math.abs(touchThrottle) > 0.08 || Math.abs(touchTurn) > 0.08);
+    constrainUnitToKickoffHalf(player);
     resolvePlayerActorCollisions();
+    constrainUnitToKickoffHalf(player);
     return;
   }
 
@@ -2227,7 +2324,9 @@ function updatePlayer(dt) {
       player.rotation.y = playerAngle;
       animatePlayerRun(player, dt, false);
     }
+    constrainUnitToKickoffHalf(player);
     resolvePlayerActorCollisions();
+    constrainUnitToKickoffHalf(player);
     return;
   }
 
@@ -2255,7 +2354,9 @@ function updatePlayer(dt) {
   }
 
   player.rotation.y = playerAngle;
+  constrainUnitToKickoffHalf(player);
   resolvePlayerActorCollisions();
+  constrainUnitToKickoffHalf(player);
   animatePlayerRun(player, dt, isMoving || isTurning);
 }
 
