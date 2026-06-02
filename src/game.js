@@ -1862,19 +1862,47 @@ function updateControlledBall(owner, dt, minX, maxX, minZ, maxZ) {
   return before;
 }
 
-function applyBallBodyCollisions() {
+function applyBallBodyCollisions(previousBallPosition = null) {
   if (!ball || ballControlled) return;
   const units = [player, ...multiplayerActors].filter((unit) => unit?.visible);
   units.forEach((unit) => {
-    const delta = ball.position.clone().sub(unit.position);
-    delta.y = 0;
-    const distance = delta.length();
-    const minDistance = 1.22;
-    if (distance <= 0.001 || distance >= minDistance || ball.position.y > 1.1) return;
-    const pushDir = delta.normalize();
+    const start = previousBallPosition || ball.position;
+    const end = ball.position;
+    const segment = end.clone().sub(start);
+    const flatSegment = new THREE.Vector3(segment.x, 0, segment.z);
+    let closest = end.clone();
+    if (flatSegment.lengthSq() > 0.001) {
+      const toUnit = unit.position.clone().sub(start);
+      const t = THREE.MathUtils.clamp(
+        (toUnit.x * flatSegment.x + toUnit.z * flatSegment.z) / flatSegment.lengthSq(),
+        0,
+        1
+      );
+      closest = start.clone().addScaledVector(segment, t);
+    }
+
+    const impactY = closest.y;
+    if (impactY < 0.28 || impactY > 3.42) return;
+
+    const delta = closest.clone().sub(unit.position);
+    const horizontal = new THREE.Vector3(delta.x, 0, delta.z);
+    const distance = horizontal.length();
+    const minDistance = impactY < 1.2 ? 1.18 : impactY < 2.75 ? 1.08 : 0.84;
+    if (distance <= 0.001 || distance >= minDistance) return;
+
+    const pushDir = horizontal.normalize();
     const overlap = minDistance - distance;
-    ball.position.addScaledVector(pushDir, overlap + 0.02);
-    ballVelocity.addScaledVector(pushDir, overlap * 9.5 + 2.5);
+    ball.position.x = closest.x + pushDir.x * (minDistance + 0.035);
+    ball.position.z = closest.z + pushDir.z * (minDistance + 0.035);
+    const incomingAlongNormal = ballVelocity.dot(pushDir);
+    if (incomingAlongNormal < 0) {
+      ballVelocity.addScaledVector(pushDir, -incomingAlongNormal * 1.45);
+    }
+    ballVelocity.addScaledVector(pushDir, overlap * 10.5 + 2.8);
+    if (impactY > 1.1) {
+      ballVerticalVelocity = Math.max(ballVerticalVelocity * 0.35, 0.75);
+      ballShotCharge = Math.max(ballShotCharge, 0.18);
+    }
   });
 }
 
@@ -2020,7 +2048,7 @@ function updateBall(dt) {
     ballVerticalVelocity = 0;
   }
 
-  applyBallBodyCollisions();
+  applyBallBodyCollisions(previousBallPosition);
   handleKeeperBallCollision(previousBallPosition);
 
   if (detectGoal(maxZ, minZ)) return;
@@ -2569,7 +2597,7 @@ function createRoom() {
   const maxPlayers = THREE.MathUtils.clamp(Number(roomMaxInput.value) || 12, 2, 16);
   const room = {
     id: `room-${Date.now()}`,
-    name: (roomNameInput.value || "payne's room").trim().slice(0, 22),
+    name: (roomNameInput.value || "Mi partida").trim().slice(0, 22),
     ping: 22 + Math.floor(Math.random() * 34),
     maxPlayers,
     players: [
