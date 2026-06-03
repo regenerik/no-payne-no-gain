@@ -987,13 +987,21 @@ function getKickoffPlayerId() {
   return activeRoom.players.find((roomPlayer) => roomPlayer.team === kickoffTeam)?.id || null;
 }
 
+function getKickoffSpot() {
+  return new THREE.Vector3(0, 0, kickoffTeam === "red" ? -1.25 : 1.25);
+}
+
+function isKickoffTaker(unit) {
+  return kickoffLocked && multiplayerMode && getUnitPlayerId(unit) === getKickoffPlayerId();
+}
+
 function getMultiplayerStartPositionFor(roomPlayer, index, total) {
   if (
     kickoffLocked
     && roomPlayer?.team === kickoffTeam
     && roomPlayer.id === getKickoffPlayerId()
   ) {
-    return new THREE.Vector3(0, 0, kickoffTeam === "red" ? -1.25 : 1.25);
+    return getKickoffSpot();
   }
   return getTeamStartPosition(roomPlayer?.team, index, total);
 }
@@ -1001,13 +1009,16 @@ function getMultiplayerStartPositionFor(roomPlayer, index, total) {
 function beginKickoffFor(scoringTeam) {
   if (!multiplayerMode || !activeRoom) return;
   kickoffTeam = scoringTeam === "red" ? "blue" : "red";
-  kickoffLocked = true;
+  const takerId = getKickoffPlayerId();
+  kickoffLocked = Boolean(takerId);
+  if (!takerId) kickoffTeam = null;
   kickoffLockUntil = performance.now() + 1350;
 }
 
-function releaseKickoffIfNeeded(kickerTeam) {
+function releaseKickoffIfNeeded(kickerTeam, kickerId = null) {
   if (!kickoffLocked || !multiplayerMode) return;
   if (kickerTeam !== kickoffTeam) return;
+  if (kickerId && kickerId !== getKickoffPlayerId()) return;
   kickoffLocked = false;
   kickoffTeam = null;
   kickoffLockUntil = 0;
@@ -1016,14 +1027,20 @@ function releaseKickoffIfNeeded(kickerTeam) {
 function releaseKickoffIfBallMoved() {
   if (!kickoffLocked || !multiplayerMode || !ball) return;
   const flatDistance = Math.hypot(ball.position.x, ball.position.z);
-  if (flatDistance > 0.9 || ballVelocity?.length() > 1.4) releaseKickoffIfNeeded(kickoffTeam);
+  if (flatDistance > 0.9 || ballVelocity?.length() > 1.4) releaseKickoffIfNeeded(kickoffTeam, getKickoffPlayerId());
 }
 
 function constrainUnitToKickoffHalf(unit) {
   if (!kickoffLocked || !multiplayerMode || !unit?.visible) return;
+  if (isKickoffTaker(unit)) {
+    const spot = getKickoffSpot();
+    unit.position.x = spot.x;
+    unit.position.z = spot.z;
+    return;
+  }
   const team = unit.userData?.team;
-  if (team === "red") unit.position.z = Math.min(unit.position.z, 0.35);
-  if (team === "blue") unit.position.z = Math.max(unit.position.z, -0.35);
+  if (team === "red") unit.position.z = Math.min(unit.position.z, -0.35);
+  if (team === "blue") unit.position.z = Math.max(unit.position.z, 0.35);
 }
 
 function isOnlineHost() {
@@ -1104,8 +1121,12 @@ function applyRemotePlayerState(playerId, state) {
   actor.userData.netTarget ||= new THREE.Vector3();
   actor.userData.netTarget.set(state.x, state.y || 0, state.z);
   if (kickoffLocked) {
-    if (actor.userData.team === "red") actor.userData.netTarget.z = Math.min(actor.userData.netTarget.z, 0.35);
-    if (actor.userData.team === "blue") actor.userData.netTarget.z = Math.max(actor.userData.netTarget.z, -0.35);
+    if (isKickoffTaker(actor)) {
+      actor.userData.netTarget.copy(getKickoffSpot());
+    } else {
+      if (actor.userData.team === "red") actor.userData.netTarget.z = Math.min(actor.userData.netTarget.z, -0.35);
+      if (actor.userData.team === "blue") actor.userData.netTarget.z = Math.max(actor.userData.netTarget.z, 0.35);
+    }
   }
   if (actor.position.distanceTo(actor.userData.netTarget) > 7) actor.position.copy(actor.userData.netTarget);
   actor.userData.netAngle = state.angle || 0;
@@ -1191,7 +1212,7 @@ function applyNetworkBallState(state = {}) {
   );
   networkBallVelocity.set(Number(state.vx) || 0, 0, Number(state.vz) || 0);
   if (kickoffLocked && (Math.hypot(networkBallTarget.x, networkBallTarget.z) > 0.9 || networkBallVelocity.length() > 1.4)) {
-    releaseKickoffIfNeeded(kickoffTeam);
+    releaseKickoffIfNeeded(kickoffTeam, getKickoffPlayerId());
   }
   if (ball.position.distanceTo(networkBallTarget) > 8) ball.position.copy(networkBallTarget);
   ballVelocity.copy(networkBallVelocity);
@@ -1205,14 +1226,14 @@ function applyNetworkKickRequest(kick = {}) {
   if (!usesNetworkBallAuthority() || !isOnlineHost() || !ball || !ballVelocity) return;
   const actor = multiplayerActors.find((unit) => unit.userData.playerId === kick.playerId);
   if (!actor?.visible || actor.position.distanceTo(ball.position) > 3.65) return;
-  if (kickoffLocked && actor.userData?.team !== kickoffTeam) return;
+  if (kickoffLocked && (!isKickoffTaker(actor) || actor.userData?.team !== kickoffTeam)) return;
   const chargeRatio = THREE.MathUtils.clamp(Number(kick.chargeRatio) || 0, 0, 1);
   const power = THREE.MathUtils.clamp(Number(kick.power) || 0, 0, 52);
   const dir = new THREE.Vector3(Number(kick.dir?.x) || 0, 0, Number(kick.dir?.z) || 0);
   if (dir.lengthSq() < 0.001) dir.copy(ball.position).sub(actor.position).setY(0);
   if (dir.lengthSq() < 0.001) return;
   dir.normalize();
-  releaseKickoffIfNeeded(actor.userData?.team);
+  releaseKickoffIfNeeded(actor.userData?.team, getUnitPlayerId(actor));
   lastAppliedKickId = kick.kickId || lastAppliedKickId;
   playKickSound(kick.soundKind || "shot", chargeRatio);
   ballControlled = false;
@@ -1651,11 +1672,11 @@ function kickBall(power, label, chargeRatio = 0, liftPower = 0, soundKind = "sho
 
   const dir = ballDirectionFromPayne();
   const localTeam = player.userData?.team || getLocalRoomPlayer()?.team;
-  if (kickoffLocked && multiplayerMode && localTeam !== kickoffTeam) {
+  if (kickoffLocked && multiplayerMode && (localTeam !== kickoffTeam || getLocalPlayerId() !== getKickoffPlayerId())) {
     momentEl.textContent = `Saca ${kickoffTeam === "red" ? "Rojo" : "Azul"} desde el centro`;
     return;
   }
-  releaseKickoffIfNeeded(localTeam);
+  releaseKickoffIfNeeded(localTeam, getLocalPlayerId());
   playKickSound(soundKind, chargeRatio);
   vibrateKick(soundKind === "shot" ? 28 : 14);
   ballControlled = false;
@@ -2189,19 +2210,20 @@ function getTouchMoveDirection() {
 
 function updatePlayer(dt) {
   if (!player.visible) return;
+  const kickoffTaker = isKickoffTaker(player);
   const touchDir = getTouchMoveDirection();
   if (touchDir) {
     const analog = THREE.MathUtils.clamp(touchMoveVector.length(), 0.28, 1);
     const touchSprintMultiplier = touchSprintActive ? 1.35 : 1;
     if (cameraMode === "broadcast") {
-      player.position.addScaledVector(touchDir, 10.5 * analog * touchSprintMultiplier * dt);
+      if (!kickoffTaker) player.position.addScaledVector(touchDir, 10.5 * analog * touchSprintMultiplier * dt);
       player.position.x = THREE.MathUtils.clamp(player.position.x, -field.width / 2 + 2, field.width / 2 - 2);
       player.position.z = THREE.MathUtils.clamp(player.position.z, -field.length / 2 + 1.1, field.length / 2 - 1.1);
       playerAngle = Math.atan2(touchDir.x, touchDir.z);
       playerMoveDir.copy(touchDir);
-      player.position.y = Math.abs(Math.sin(performance.now() * 0.014)) * 0.08;
+      player.position.y = kickoffTaker ? THREE.MathUtils.lerp(player.position.y, 0, 0.18) : Math.abs(Math.sin(performance.now() * 0.014)) * 0.08;
       player.rotation.y = playerAngle;
-      animatePlayerRun(player, dt, true);
+      animatePlayerRun(player, dt, !kickoffTaker);
       constrainUnitToKickoffHalf(player);
       resolvePlayerActorCollisions();
       constrainUnitToKickoffHalf(player);
@@ -2216,17 +2238,17 @@ function updatePlayer(dt) {
     }
     if (Math.abs(touchThrottle) > 0.08) {
       const forward = new THREE.Vector3(Math.sin(playerAngle), 0, Math.cos(playerAngle));
-      player.position.addScaledVector(forward, touchThrottle * 10.5 * analog * touchSprintMultiplier * dt);
+      if (!kickoffTaker) player.position.addScaledVector(forward, touchThrottle * 10.5 * analog * touchSprintMultiplier * dt);
       playerMoveDir.copy(forward).multiplyScalar(Math.sign(touchThrottle)).normalize();
       player.position.x = THREE.MathUtils.clamp(player.position.x, -field.width / 2 + 2, field.width / 2 - 2);
       player.position.z = THREE.MathUtils.clamp(player.position.z, -field.length / 2 + 1.1, field.length / 2 - 1.1);
-      player.position.y = Math.abs(Math.sin(performance.now() * 0.014)) * 0.08;
+      player.position.y = kickoffTaker ? THREE.MathUtils.lerp(player.position.y, 0, 0.18) : Math.abs(Math.sin(performance.now() * 0.014)) * 0.08;
     } else {
       playerMoveDir.set(Math.sin(playerAngle), 0, Math.cos(playerAngle));
       player.position.y = THREE.MathUtils.lerp(player.position.y, 0, 0.18);
     }
     player.rotation.y = playerAngle;
-    animatePlayerRun(player, dt, Math.abs(touchThrottle) > 0.08 || Math.abs(touchTurn) > 0.08);
+    animatePlayerRun(player, dt, !kickoffTaker && (Math.abs(touchThrottle) > 0.08 || Math.abs(touchTurn) > 0.08));
     constrainUnitToKickoffHalf(player);
     resolvePlayerActorCollisions();
     constrainUnitToKickoffHalf(player);
@@ -2242,14 +2264,14 @@ function updatePlayer(dt) {
     if (screenDir.lengthSq() > 0) {
       screenDir.normalize();
       const sprintMultiplier = keys.has("ShiftLeft") ? 1.35 : 1;
-      player.position.addScaledVector(screenDir, 10.5 * sprintMultiplier * dt);
+      if (!kickoffTaker) player.position.addScaledVector(screenDir, 10.5 * sprintMultiplier * dt);
       player.position.x = THREE.MathUtils.clamp(player.position.x, -field.width / 2 + 2, field.width / 2 - 2);
       player.position.z = THREE.MathUtils.clamp(player.position.z, -field.length / 2 + 1.1, field.length / 2 - 1.1);
       playerAngle = Math.atan2(screenDir.x, screenDir.z);
       playerMoveDir.copy(screenDir);
-      player.position.y = Math.abs(Math.sin(performance.now() * 0.014)) * 0.08;
+      player.position.y = kickoffTaker ? THREE.MathUtils.lerp(player.position.y, 0, 0.18) : Math.abs(Math.sin(performance.now() * 0.014)) * 0.08;
       player.rotation.y = playerAngle;
-      animatePlayerRun(player, dt, true);
+      animatePlayerRun(player, dt, !kickoffTaker);
     } else {
       playerMoveDir.set(Math.sin(playerAngle), 0, Math.cos(playerAngle));
       player.position.y = THREE.MathUtils.lerp(player.position.y, 0, 0.18);
@@ -2275,11 +2297,11 @@ function updatePlayer(dt) {
   if (isMoving) {
     const forward = new THREE.Vector3(Math.sin(playerAngle), 0, Math.cos(playerAngle));
     const sprintMultiplier = keys.has("ShiftLeft") ? 1.35 : 1;
-    player.position.addScaledVector(forward, throttle * 10.5 * sprintMultiplier * dt);
+    if (!kickoffTaker) player.position.addScaledVector(forward, throttle * 10.5 * sprintMultiplier * dt);
     playerMoveDir.copy(forward).multiplyScalar(throttle).normalize();
     player.position.x = THREE.MathUtils.clamp(player.position.x, -field.width / 2 + 2, field.width / 2 - 2);
     player.position.z = THREE.MathUtils.clamp(player.position.z, -field.length / 2 + 1.1, field.length / 2 - 1.1);
-    player.position.y = Math.abs(Math.sin(performance.now() * 0.014)) * 0.08;
+    player.position.y = kickoffTaker ? THREE.MathUtils.lerp(player.position.y, 0, 0.18) : Math.abs(Math.sin(performance.now() * 0.014)) * 0.08;
   } else {
     playerMoveDir.set(Math.sin(playerAngle), 0, Math.cos(playerAngle));
     player.position.y = THREE.MathUtils.lerp(player.position.y, 0, 0.18);
@@ -2289,7 +2311,7 @@ function updatePlayer(dt) {
   constrainUnitToKickoffHalf(player);
   resolvePlayerActorCollisions();
   constrainUnitToKickoffHalf(player);
-  animatePlayerRun(player, dt, isMoving || isTurning);
+  animatePlayerRun(player, dt, !kickoffTaker && (isMoving || isTurning));
 }
 
 function updateCamera(dt) {
@@ -2744,6 +2766,7 @@ function renderRoom() {
     ? "Start game"
     : (matchRunning ? "Back to game" : "Esperando start");
   startMultiplayerGameBtn.disabled = !canManageRoom && !matchRunning;
+  startMultiplayerGameBtn.style.display = canManageRoom || matchRunning ? "" : "none";
   closeRoomOverlayBtn.textContent = "X";
   closeRoomOverlayBtn.style.display = matchRunning ? "inline-flex" : "";
   [
