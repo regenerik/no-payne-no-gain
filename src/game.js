@@ -162,6 +162,7 @@ let touchMoveVector = new THREE.Vector2();
 let kickoffLockUntil = 0;
 let kickoffLocked = false;
 let kickoffTeam = null;
+let kickoffTakerId = null;
 let touchSprintActive = false;
 let lobbyPreviewMode = false;
 let multiplayerRooms = [];
@@ -983,6 +984,7 @@ function getUnitPlayerId(unit) {
 }
 
 function getKickoffPlayerId() {
+  if (kickoffTakerId) return kickoffTakerId;
   if (!activeRoom || !kickoffTeam) return null;
   return activeRoom.players.find((roomPlayer) => roomPlayer.team === kickoffTeam)?.id || null;
 }
@@ -1010,8 +1012,12 @@ function beginKickoffFor(scoringTeam) {
   if (!multiplayerMode || !activeRoom) return;
   kickoffTeam = scoringTeam === "red" ? "blue" : "red";
   const takerId = getKickoffPlayerId();
+  kickoffTakerId = takerId;
   kickoffLocked = Boolean(takerId);
-  if (!takerId) kickoffTeam = null;
+  if (!takerId) {
+    kickoffTeam = null;
+    kickoffTakerId = null;
+  }
   kickoffLockUntil = takerId ? performance.now() + 1350 : 0;
 }
 
@@ -1021,6 +1027,7 @@ function releaseKickoffIfNeeded(kickerTeam, kickerId = null) {
   if (kickerId && kickerId !== getKickoffPlayerId()) return;
   kickoffLocked = false;
   kickoffTeam = null;
+  kickoffTakerId = null;
   kickoffLockUntil = 0;
 }
 
@@ -1049,11 +1056,13 @@ function applyNetworkKickoffState(state = {}) {
   if (!locked) {
     kickoffLocked = false;
     kickoffTeam = null;
+    kickoffTakerId = null;
     kickoffLockUntil = 0;
     return;
   }
   kickoffTeam = state.kickoffTeam === "red" || state.kickoffTeam === "blue" ? state.kickoffTeam : null;
-  kickoffLocked = Boolean(kickoffTeam && getKickoffPlayerId());
+  kickoffTakerId = typeof state.kickoffTakerId === "string" ? state.kickoffTakerId : null;
+  kickoffLocked = Boolean(kickoffTeam && kickoffTakerId);
   kickoffLockUntil = kickoffLocked ? performance.now() + 900 : 0;
 }
 
@@ -1437,6 +1446,7 @@ function setupGame() {
   lastAppliedKickId = null;
   kickoffLocked = false;
   kickoffTeam = null;
+  kickoffTakerId = null;
   kickoffLockUntil = 0;
   spaceChargeStart = null;
   chargeMeterOpacity = 0;
