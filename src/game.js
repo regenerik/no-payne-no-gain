@@ -988,7 +988,7 @@ function getKickoffPlayerId() {
 }
 
 function getKickoffSpot() {
-  return new THREE.Vector3(0, 0, kickoffTeam === "red" ? -1.25 : 1.25);
+  return new THREE.Vector3(0, 0, 0);
 }
 
 function isKickoffTaker(unit) {
@@ -1012,7 +1012,7 @@ function beginKickoffFor(scoringTeam) {
   const takerId = getKickoffPlayerId();
   kickoffLocked = Boolean(takerId);
   if (!takerId) kickoffTeam = null;
-  kickoffLockUntil = performance.now() + 1350;
+  kickoffLockUntil = takerId ? performance.now() + 1350 : 0;
 }
 
 function releaseKickoffIfNeeded(kickerTeam, kickerId = null) {
@@ -1041,6 +1041,20 @@ function constrainUnitToKickoffHalf(unit) {
   const team = unit.userData?.team;
   if (team === "red") unit.position.z = Math.min(unit.position.z, -0.35);
   if (team === "blue") unit.position.z = Math.max(unit.position.z, 0.35);
+}
+
+function applyNetworkKickoffState(state = {}) {
+  if (!multiplayerMode || isOnlineHost()) return;
+  const locked = Boolean(state.kickoffLocked);
+  if (!locked) {
+    kickoffLocked = false;
+    kickoffTeam = null;
+    kickoffLockUntil = 0;
+    return;
+  }
+  kickoffTeam = state.kickoffTeam === "red" || state.kickoffTeam === "blue" ? state.kickoffTeam : null;
+  kickoffLocked = Boolean(kickoffTeam && getKickoffPlayerId());
+  kickoffLockUntil = kickoffLocked ? performance.now() + 900 : 0;
 }
 
 function isOnlineHost() {
@@ -1151,6 +1165,7 @@ function updateRemoteActors(dt) {
 
 function emitLocalPlayerState() {
   if (!onlineMode || !socket?.connected || !multiplayerMode || !player?.visible) return;
+  constrainUnitToKickoffHalf(player);
   const now = performance.now();
   if (now - lastNetStateAt < 50) return;
   lastNetStateAt = now;
@@ -1178,6 +1193,9 @@ function emitBallState() {
     charge: ballShotCharge,
     ownerId: ballOwner?.userData?.playerId || (ballOwner === player ? getLocalPlayerId() : null),
     lastKickId: lastAppliedKickId,
+    kickoffLocked,
+    kickoffTeam,
+    kickoffTakerId: getKickoffPlayerId(),
   });
 }
 
@@ -1186,6 +1204,7 @@ function applyNetworkBallState(state = {}) {
   const seq = Number(state.seq) || 0;
   if (seq && seq <= lastNetworkBallSeq) return;
   if (seq) lastNetworkBallSeq = seq;
+  applyNetworkKickoffState(state);
   networkBallOwnerId = state.ownerId || null;
   if (performance.now() < kickoffLockUntil) networkBallOwnerId = null;
   if (pendingLocalKickId && state.lastKickId === pendingLocalKickId) {
@@ -1538,6 +1557,9 @@ function updatePlayerTags() {
 }
 
 function ballDirectionFromPayne() {
+  if (isKickoffTaker(player)) {
+    return new THREE.Vector3(Math.sin(playerAngle), 0, Math.cos(playerAngle)).normalize();
+  }
   const dir = ball.position.clone().sub(player.position);
   dir.y = 0;
   if (dir.lengthSq() < 0.0001) {
@@ -2061,7 +2083,7 @@ function updateBall(dt) {
   toBall.y = 0;
   const distance = toBall.length();
   const minDistance = playerRadius + ballRadius;
-  const candidateOwner = !proModeEnabled && ballMagnetCooldown <= 0 && ballVelocity.length() < 18
+  const candidateOwner = !kickoffLocked && !proModeEnabled && ballMagnetCooldown <= 0 && ballVelocity.length() < 18
     ? getBallOwnerCandidate(2.35)
     : null;
 
