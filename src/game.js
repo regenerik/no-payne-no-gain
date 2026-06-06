@@ -182,6 +182,7 @@ let spectatorGrounded = true;
 let spectatorJumpQueued = false;
 let spectatorConfetti = [];
 let lastSpectatorConfettiAt = 0;
+let matchEndRoomTimer = 0;
 
 let celebrationRenderer;
 let celebrationScene;
@@ -427,7 +428,13 @@ async function connectOnlineServer() {
       }
     });
     socket.on("room:started", (room) => {
+      if (matchEndRoomTimer) {
+        clearTimeout(matchEndRoomTimer);
+        matchEndRoomTimer = 0;
+      }
+      goalBanner.classList.remove("show", "final-result");
       activeRoom = room;
+      activeRoom.started = true;
       currentMatchId = room.matchState?.matchId || null;
       spectatorViewing = getLocalRoomPlayer()?.team === "spectators";
       roomTimeInput.value = room.settings?.timeLimit || 3;
@@ -2031,12 +2038,8 @@ function releaseChargedShot() {
   const chargeSeconds = THREE.MathUtils.clamp(heldSeconds, 0, 0.8);
   const chargeRatio = heldSeconds < 0.1 ? 0 : chargeSeconds / 0.8;
   const power = 27.75 * (1 + chargeRatio * 0.8);
-  const overchargeRamp = THREE.MathUtils.clamp((chargeRatio - 0.8) / 0.1, 0, 1);
   const maximumOvercharge = THREE.MathUtils.clamp((chargeRatio - 0.9) / 0.1, 0, 1);
-  const liftPower = 2.2
-    + chargeRatio * 5.0
-    + overchargeRamp * 17.3
-    + maximumOvercharge * 4.0;
+  const liftPower = 2.2 + chargeRatio * 5.0 + maximumOvercharge * 4.8;
   const percent = Math.round(chargeRatio * 80);
   const label = chargeRatio === 0
     ? "Payne remata fuerte hacia su eje"
@@ -2904,7 +2907,10 @@ function finishMatch() {
     showMultiplayerFinalBanner();
     roomOverlayOpen = false;
     roomScreen.classList.remove("is-overlay");
-    setTimeout(() => {
+    if (matchEndRoomTimer) clearTimeout(matchEndRoomTimer);
+    matchEndRoomTimer = setTimeout(() => {
+      matchEndRoomTimer = 0;
+      if (activeRoom?.started) return;
       goalBanner.classList.remove("show", "final-result");
       renderRoom();
       showRoomLobbyPreview();
@@ -2915,6 +2921,10 @@ function finishMatch() {
 }
 
 function handleRoomClosed() {
+  if (matchEndRoomTimer) {
+    clearTimeout(matchEndRoomTimer);
+    matchEndRoomTimer = 0;
+  }
   keys.clear();
   clearPlayerTags();
   if (gameFrame) cancelAnimationFrame(gameFrame);
@@ -3052,6 +3062,10 @@ function closeRoomOverlay() {
 }
 
 function leaveRoom() {
+  if (matchEndRoomTimer) {
+    clearTimeout(matchEndRoomTimer);
+    matchEndRoomTimer = 0;
+  }
   if (onlineMode && socket?.connected && activeRoom) {
     socket.emit("room:leave");
   }
@@ -3190,7 +3204,8 @@ function setupRoomDropZone(container, team) {
 function renderRoom() {
   if (!activeRoom) return;
   const canManageRoom = isCurrentRoomHost();
-  const matchRunning = activeRoom.started === true;
+  const matchRunning = activeRoom.started === true
+    || Boolean(activeRoom.matchState?.matchId && activeRoom.matchEndsAt);
   const localIsSpectator = getLocalRoomPlayer()?.team === "spectators";
   activeRoomName.textContent = activeRoom.name;
   if (activeRoom.settings) {
@@ -3341,6 +3356,10 @@ function returnToMenu() {
   if (onlineMode && socket?.connected && activeRoom && multiplayerMode && !isCurrentRoomHost()) {
     leaveRoom();
     return;
+  }
+  if (matchEndRoomTimer) {
+    clearTimeout(matchEndRoomTimer);
+    matchEndRoomTimer = 0;
   }
   keys.clear();
   clearPlayerTags();
