@@ -33,6 +33,7 @@ const autoTeamsBtn = document.querySelector("#autoTeamsBtn");
 const randomTeamsBtn = document.querySelector("#randomTeamsBtn");
 const lockRoomBtn = document.querySelector("#lockRoomBtn");
 const resetTeamsBtn = document.querySelector("#resetTeamsBtn");
+const recordBtn = document.querySelector("#recordBtn");
 const copyLinkBtn = document.querySelector("#copyLinkBtn");
 const closeRoomOverlayBtn = document.querySelector("#closeRoomOverlayBtn");
 const leaveRoomBtn = document.querySelector("#leaveRoomBtn");
@@ -61,6 +62,7 @@ const touchSoftBtn = document.querySelector("#touchSoftBtn");
 const touchPassBtn = document.querySelector("#touchPassBtn");
 const touchShotBtn = document.querySelector("#touchShotBtn");
 let spectatorNotice;
+let acknowledgedSpectatorSignature = "";
 
 const matchLength = 180;
 const field = { width: 42, length: 76 };
@@ -204,19 +206,31 @@ function ensureSpectatorNotice() {
   spectatorNotice = document.createElement("div");
   spectatorNotice.className = "spectator-notice";
   spectatorNotice.textContent = "!";
-  spectatorNotice.title = "Hay jugadores en espectadores";
+  spectatorNotice.title = "Hay jugadores en espera";
+  spectatorNotice.dataset.tooltip = "Hay jugadores en espera";
+  spectatorNotice.setAttribute("role", "status");
+  spectatorNotice.setAttribute("aria-label", "Hay jugadores en espera");
   document.body.appendChild(spectatorNotice);
   return spectatorNotice;
 }
 
 function updateSpectatorNotice() {
   const notice = ensureSpectatorNotice();
+  const spectatorSignature = activeRoom?.players
+    ?.filter((roomPlayer) => roomPlayer.team === "spectators")
+    .map((roomPlayer) => roomPlayer.id)
+    .sort()
+    .join("|") || "";
   const shouldShow = Boolean(
     activeRoom
     && isCurrentRoomHost()
-    && activeRoom.players?.some((roomPlayer) => roomPlayer.team === "spectators")
+    && spectatorSignature
   );
   notice.classList.toggle("show", shouldShow);
+  notice.classList.toggle(
+    "needs-attention",
+    shouldShow && spectatorSignature !== acknowledgedSpectatorSignature
+  );
 }
 
 function makeCanvasTexture(draw, width = 256, height = 256) {
@@ -1596,6 +1610,7 @@ function setupGame() {
     ? "Room abierta: acomodando equipos"
     : (multiplayerMode ? "Multijugador online" : "Modo entrenamiento");
   if (roomGameBtn) roomGameBtn.style.display = multiplayerMode ? "block" : "none";
+  backMenuBtn?.classList.toggle("with-room-button", multiplayerMode);
   setupPlayerTags();
   updateChargeMeter(0);
   animateGame();
@@ -2778,8 +2793,16 @@ function openRoomOverlay() {
   if (!multiplayerMode || !activeRoom) return;
   keys.clear();
   roomOverlayOpen = true;
+  if (isCurrentRoomHost()) {
+    acknowledgedSpectatorSignature = activeRoom.players
+      ?.filter((roomPlayer) => roomPlayer.team === "spectators")
+      .map((roomPlayer) => roomPlayer.id)
+      .sort()
+      .join("|") || "";
+  }
   renderRoom();
   roomScreen.classList.add("is-active", "is-overlay");
+  updateSpectatorNotice();
 }
 
 function closeRoomOverlay() {
@@ -2926,7 +2949,7 @@ function setupRoomDropZone(container, team) {
 function renderRoom() {
   if (!activeRoom) return;
   const canManageRoom = isCurrentRoomHost();
-  const matchRunning = Boolean(activeRoom.started || multiplayerMode);
+  const matchRunning = activeRoom.started === true;
   activeRoomName.textContent = activeRoom.name;
   if (activeRoom.settings) {
     roomTimeInput.value = activeRoom.settings.timeLimit || 3;
@@ -2940,11 +2963,15 @@ function renderRoom() {
   lockRoomBtn.textContent = roomLocked ? "Unlock" : "Lock";
   startMultiplayerGameBtn.textContent = canManageRoom
     ? "Start game"
-    : (matchRunning ? "Back to game" : "Esperando start");
+    : (matchRunning ? "Back to game" : "Waiting for a new game");
   startMultiplayerGameBtn.disabled = !canManageRoom && !matchRunning;
-  startMultiplayerGameBtn.style.display = canManageRoom || matchRunning ? "" : "none";
+  startMultiplayerGameBtn.style.display = "";
+  startMultiplayerGameBtn.classList.toggle("is-waiting", !canManageRoom && !matchRunning);
   closeRoomOverlayBtn.textContent = "X";
-  closeRoomOverlayBtn.style.display = matchRunning ? "inline-flex" : "";
+  recordBtn.style.display = canManageRoom ? "" : "none";
+  copyLinkBtn.style.display = canManageRoom ? "" : "none";
+  closeRoomOverlayBtn.style.display = canManageRoom && matchRunning ? "inline-flex" : "none";
+  leaveRoomBtn.style.display = "";
   [
     autoTeamsBtn,
     randomTeamsBtn,
@@ -3197,7 +3224,18 @@ useOtherServerBtn?.addEventListener("click", () => {
 });
 againBtn.addEventListener("click", startGame);
 roomGameBtn.addEventListener("click", openRoomOverlay);
-backMenuBtn.addEventListener("click", returnToMenu);
+backMenuBtn.addEventListener("click", () => {
+  const multiplayerMatchOpen = multiplayerMode
+    && gameScreen.classList.contains("is-active")
+    && !roomOverlayOpen;
+  if (
+    multiplayerMatchOpen
+    && !window.confirm("¿Seguro que querés volver al menú y salir de la partida?")
+  ) {
+    return;
+  }
+  returnToMenu();
+});
 roomsBackBtn.addEventListener("click", returnToMenu);
 createRoomBtn.addEventListener("click", createRoom);
 moveToRedBtn.addEventListener("click", () => moveSelectedPlayer("red"));
