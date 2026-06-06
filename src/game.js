@@ -151,6 +151,10 @@ let onlinePlayerName = localStorage.getItem("npgPlayerName") || "";
 if (onlinePlayerName.toLowerCase() === "davo") onlinePlayerName = "";
 let lastNetStateAt = 0;
 let lastBallNetStateAt = 0;
+let localInputSeq = 0;
+let lastSnapshotSeq = 0;
+let authoritativeLocalTarget = new THREE.Vector3();
+let hasAuthoritativeLocalTarget = false;
 let networkBallOwnerId = null;
 let localBallPredictionBlockedUntil = 0;
 let lastNetworkBallSeq = 0;
@@ -406,6 +410,7 @@ async function connectOnlineServer() {
       roomProModeToggle.checked = room.settings?.proMode === true;
       roomKeeperToggle.checked = room.settings?.keeperEnabled === true;
       startGame({ multiplayer: true });
+      if (room.matchState) applyAuthoritativeSnapshot(room.matchState, true);
     });
     socket.on("room:ended", (room) => {
       activeRoom = room;
@@ -414,14 +419,21 @@ async function connectOnlineServer() {
     socket.on("room:closed", () => {
       handleRoomClosed();
     });
-    socket.on("player:state", ({ playerId, state }) => {
-      applyRemotePlayerState(playerId, state);
+    socket.on("match:snapshot", (snapshot) => {
+      applyAuthoritativeSnapshot(snapshot);
     });
-    socket.on("ball:state", (state) => {
-      applyNetworkBallState(state);
+    socket.on("ball:kicked", (kick) => {
+      if (kick.playerId !== getLocalPlayerId()) {
+        playKickSound(kick.soundKind || "shot", Number(kick.chargeRatio) || 0);
+        const direction = new THREE.Vector3(Number(kick.dir?.x) || 0, 0, Number(kick.dir?.z) || 0);
+        if (direction.lengthSq() > 0.001) spawnBallTrail(direction.normalize(), Number(kick.chargeRatio) || 0);
+      }
     });
-    socket.on("ball:kick", (kick) => {
-      applyNetworkKickRequest(kick);
+    socket.on("ball:kick-rejected", ({ kickId } = {}) => {
+      if (kickId && kickId === pendingLocalKickId) {
+        pendingLocalKickId = null;
+        localBallPredictionBlockedUntil = 0;
+      }
     });
     socket.on("match:score", (payload) => {
       applyNetworkScore(payload);
@@ -1078,7 +1090,7 @@ function constrainUnitToKickoffHalf(unit) {
 }
 
 function applyNetworkKickoffState(state = {}) {
-  if (!multiplayerMode || isOnlineHost()) return;
+  if (!multiplayerMode) return;
   const locked = Boolean(state.kickoffLocked);
   if (!locked) {
     kickoffLocked = false;
@@ -1169,7 +1181,12 @@ function applyRemotePlayerState(playerId, state) {
   if (seq && actor.userData.netSeq && seq <= actor.userData.netSeq) return;
   if (seq) actor.userData.netSeq = seq;
   actor.userData.netTarget ||= new THREE.Vector3();
-  actor.userData.netTarget.set(state.x, state.y || 0, state.z);
+  const remoteLead = 0.065;
+  actor.userData.netTarget.set(
+    (Number(state.x) || 0) + (Number(state.vx) || 0) * remoteLead,
+    state.y || 0,
+    (Number(state.z) || 0) + (Number(state.vz) || 0) * remoteLead
+  );
   if (kickoffLocked) {
     if (isKickoffTaker(actor)) {
       actor.userData.netTarget.copy(getKickoffSpot());
@@ -1199,44 +1216,48 @@ function updateRemoteActors(dt) {
   });
 }
 
+function getLocalNetworkVelocity() {
+  if (isKickoffTaker(player)) return new THREE.Vector3();
+  const sprintMultiplier = touchSprintActive || keys.has("ShiftLeft") ? 1.35 : 1;
+  if (touchMoveVector.lengthSq() >= 0.006) {
+    const analog = THREE.MathUtils.clamp(touchMoveVector.length(), 0.28, 1);
+    const throttleScale = cameraMode === "broadcast"
+      ? analog
+      : Math.abs(touchMoveVector.y) * analog;
+    return playerMoveDir.clone().normalize().multiplyScalar(10.5 * sprintMultiplier * throttleScale);
+  }
+  const moving = cameraMode === "broadcast"
+    ? keys.has("KeyW") || keys.has("ArrowUp")
+      || keys.has("KeyS") || keys.has("ArrowDown")
+      || keys.has("KeyA") || keys.has("ArrowLeft")
+      || keys.has("KeyD") || keys.has("ArrowRight")
+    : keys.has("KeyW") || keys.has("ArrowUp")
+      || keys.has("KeyS") || keys.has("ArrowDown");
+  if (!moving || playerMoveDir.lengthSq() < 0.001) return new THREE.Vector3();
+  return playerMoveDir.clone().normalize().multiplyScalar(10.5 * sprintMultiplier);
+}
+
 function emitLocalPlayerState() {
   if (!onlineMode || !socket?.connected || !multiplayerMode || !player?.visible) return;
   constrainUnitToKickoffHalf(player);
   const now = performance.now();
-  if (now - lastNetStateAt < 50) return;
+  if (now - lastNetStateAt < 33) return;
   lastNetStateAt = now;
-  (socket.volatile || socket).emit("player:state", {
-    x: player.position.x,
-    y: player.position.y,
-    z: player.position.z,
+  const velocity = getLocalNetworkVelocity();
+  (socket.volatile || socket).emit("player:input", {
+    seq: ++localInputSeq,
     angle: player.rotation.y,
-    moving: player.position.y > 0.01,
+    vx: velocity.x,
+    vz: velocity.z,
   });
 }
 
 function emitBallState() {
-  if (!usesNetworkBallAuthority() || !isOnlineHost() || !ball || !ballVelocity) return;
-  const now = performance.now();
-  if (now - lastBallNetStateAt < 33) return;
-  lastBallNetStateAt = now;
-  (socket.volatile || socket).emit("ball:state", {
-    x: ball.position.x,
-    y: ball.position.y,
-    z: ball.position.z,
-    vx: ballVelocity.x,
-    vz: ballVelocity.z,
-    vy: ballVerticalVelocity,
-    charge: ballShotCharge,
-    ownerId: ballOwner?.userData?.playerId || (ballOwner === player ? getLocalPlayerId() : null),
-    lastKickId: lastAppliedKickId,
-    kickoffLocked,
-    kickoffTeam,
-    kickoffTakerId: getKickoffPlayerId(),
-  });
+  // Multiplayer ball state is produced exclusively by the server.
 }
 
 function applyNetworkBallState(state = {}) {
-  if (!usesNetworkBallAuthority() || isOnlineHost() || !ball || !ballVelocity) return;
+  if (!usesNetworkBallAuthority() || !ball || !ballVelocity) return;
   const seq = Number(state.seq) || 0;
   if (seq && seq <= lastNetworkBallSeq) return;
   if (seq) lastNetworkBallSeq = seq;
@@ -1261,9 +1282,9 @@ function applyNetworkBallState(state = {}) {
     return;
   }
   networkBallTarget.set(
-    Number(state.x) || 0,
-    Number(state.y) || 0.42,
-    Number(state.z) || 0
+    (Number(state.x) || 0) + (Number(state.vx) || 0) * 0.045,
+    Math.max(0.42, (Number(state.y) || 0.42) + (Number(state.vy) || 0) * 0.045),
+    (Number(state.z) || 0) + (Number(state.vz) || 0) * 0.045
   );
   networkBallVelocity.set(Number(state.vx) || 0, 0, Number(state.vz) || 0);
   if (kickoffLocked && (Math.hypot(networkBallTarget.x, networkBallTarget.z) > 0.9 || networkBallVelocity.length() > 1.4)) {
@@ -1275,6 +1296,74 @@ function applyNetworkBallState(state = {}) {
   ballShotCharge = Number(state.charge) || 0;
   ballControlled = false;
   ballOwner = null;
+}
+
+function applyAuthoritativeSnapshot(snapshot = {}, immediate = false) {
+  if (!usesNetworkBallAuthority() || !snapshot || !ball || !player) return;
+  const seq = Number(snapshot.seq) || 0;
+  if (seq && seq <= lastSnapshotSeq) return;
+  if (seq) lastSnapshotSeq = seq;
+
+  if (snapshot.matchEndsAt) {
+    activeRoom.matchEndsAt = snapshot.matchEndsAt;
+    remaining = Math.max(0, (Number(snapshot.matchEndsAt) - Date.now()) / 1000);
+  }
+  if (snapshot.scores) {
+    redScore = Number(snapshot.scores.red) || 0;
+    blueScore = Number(snapshot.scores.blue) || 0;
+    scoreEl.textContent = `Rojo ${redScore} - ${blueScore} Azul`;
+    updateStadiumScoreboard();
+    if (activeRoom) activeRoom.scores = { red: redScore, blue: blueScore };
+  }
+  applyNetworkKickoffState(snapshot);
+
+  (snapshot.players || []).forEach((state) => {
+    if (state.id === getLocalPlayerId()) {
+      const snapshotAge = THREE.MathUtils.clamp((Date.now() - (Number(snapshot.serverTime) || Date.now())) / 1000, 0, 0.16);
+      authoritativeLocalTarget.set(
+        (Number(state.x) || 0) + (Number(state.vx) || 0) * snapshotAge,
+        Number(state.y) || 0,
+        (Number(state.z) || 0) + (Number(state.vz) || 0) * snapshotAge
+      );
+      hasAuthoritativeLocalTarget = true;
+      const error = player.position.distanceTo(authoritativeLocalTarget);
+      if (immediate || error > 4.5) {
+        player.position.copy(authoritativeLocalTarget);
+      } else if (error > 0.28) {
+        player.position.lerp(authoritativeLocalTarget, error > 1.2 ? 0.28 : 0.07);
+      }
+      return;
+    }
+    applyRemotePlayerState(state.id, { ...state, seq });
+  });
+
+  if (snapshot.ball) {
+    applyNetworkBallState({
+      ...snapshot.ball,
+      seq,
+      kickoffLocked: snapshot.kickoffLocked,
+      kickoffTeam: snapshot.kickoffTeam,
+      kickoffTakerId: snapshot.kickoffTakerId,
+    });
+  }
+
+  if (Array.isArray(snapshot.keepers) && goalKeepers.length) {
+    snapshot.keepers.forEach((keeperSnapshot) => {
+      const state = goalKeepers.find((candidate) => candidate.side === keeperSnapshot.side);
+      if (!state) return;
+      state.mode = keeperSnapshot.mode || "ready";
+      state.targetX = Number(keeperSnapshot.targetX) || 0;
+      state.unit.position.set(
+        Number(keeperSnapshot.x) || 0,
+        Number(keeperSnapshot.y) || 0,
+        Number(keeperSnapshot.z) || 0
+      );
+      state.unit.rotation.y = state.side > 0 ? Math.PI : 0;
+      state.unit.rotation.z = state.mode === "dive"
+        ? (state.targetX >= state.unit.position.x ? -1.24 : 1.24)
+        : 0;
+    });
+  }
 }
 
 function applyNetworkKickRequest(kick = {}) {
@@ -1313,12 +1402,10 @@ function resetLocalPlayerForKickoff() {
 
 function applyNetworkScore(payload = {}) {
   if (!multiplayerMode || !payload.scores) return;
-  const host = isOnlineHost();
   redScore = Number(payload.scores.red) || 0;
   blueScore = Number(payload.scores.blue) || 0;
   scoreEl.textContent = `Rojo ${redScore} - ${blueScore} Azul`;
   updateStadiumScoreboard();
-  if (host) return;
 
   const scoringTeam = payload.scoringTeam;
   if (!stadiumSoundMuted) {
@@ -1468,6 +1555,9 @@ function setupGame() {
   networkBallTarget.set(0, 0.42, multiplayerMode ? 0 : -29.6);
   networkBallVelocity.set(0, 0, 0);
   lastNetworkBallSeq = 0;
+  lastSnapshotSeq = 0;
+  localInputSeq = 0;
+  hasAuthoritativeLocalTarget = false;
   pendingLocalKickId = null;
   lastAppliedKickId = null;
   kickoffLocked = false;
@@ -1498,7 +1588,7 @@ function setupGame() {
   updateTimer();
   momentEl.textContent = lobbyPreviewMode
     ? "Room abierta: acomodando equipos"
-    : (multiplayerMode ? "Multijugador local: sin arquero PC" : "Modo entrenamiento");
+    : (multiplayerMode ? "Multijugador online" : "Modo entrenamiento");
   if (roomGameBtn) roomGameBtn.style.display = multiplayerMode ? "block" : "none";
   setupPlayerTags();
   updateChargeMeter(0);
@@ -1751,7 +1841,7 @@ function kickBall(power, label, chargeRatio = 0, liftPower = 0, soundKind = "sho
   ballOwner = null;
   networkBallOwnerId = null;
   ballMagnetCooldown = 0.58 + chargeRatio * 0.22;
-  if (usesNetworkBallAuthority() && !isOnlineHost()) {
+  if (usesNetworkBallAuthority()) {
     pendingLocalKickId = `kick-${getLocalPlayerId()}-${++localKickSeq}`;
     socket.emit("ball:kick", {
       kickId: pendingLocalKickId,
@@ -1898,6 +1988,7 @@ function celebrateGoal(scoringTeam = "payne") {
 function updateGoalkeeper(dt) {
   const states = getKeeperStates();
   if (states.length === 0) return;
+  if (usesNetworkBallAuthority()) return;
 
   states.forEach((state) => {
     const unit = state.unit;
@@ -2089,7 +2180,7 @@ function updateBall(dt) {
     networkBallOwnerId = null;
   }
 
-  if (usesNetworkBallAuthority() && !isOnlineHost()) {
+  if (usesNetworkBallAuthority()) {
     if (
       networkBallOwnerId === getLocalPlayerId()
       && !pendingLocalKickId
@@ -2108,7 +2199,7 @@ function updateBall(dt) {
       return;
     }
     if (!pendingLocalKickId) {
-      const blend = 1 - Math.pow(0.0018, dt);
+      const blend = 1 - Math.pow(0.000001, dt);
       ball.position.lerp(networkBallTarget, blend);
       ballVelocity.lerp(networkBallVelocity, blend);
     } else {
@@ -2959,9 +3050,12 @@ function startGame(options = {}) {
   if (lobbyPreviewMode) stopGameAudio();
   else startStadiumAudio();
   setupGame();
+  if (multiplayerMode && activeRoom?.matchState) {
+    applyAuthoritativeSnapshot(activeRoom.matchState, true);
+  }
   if (multiplayerMode) {
     updateTimer();
-    momentEl.textContent = lobbyPreviewMode ? "Room abierta: acomodando equipos" : "Multijugador local: sin arquero PC";
+    momentEl.textContent = lobbyPreviewMode ? "Room abierta: acomodando equipos" : "Multijugador online";
   }
 }
 

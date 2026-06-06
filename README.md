@@ -1,20 +1,37 @@
 # No Payne No Gain
 
-Mini juego 3D web hecho para abrir desde `index.html` o con `Abrir No Payne No Gain.bat`.
+Juego de futbol 3D para navegador con entrenamiento y multijugador online.
 
-## Como jugar
+## Controles
 
-- `W` o flecha arriba: avanzar hacia donde mira Tim Payne.
-- `S` o flecha abajo: retroceder.
-- `A/D` o flechas izquierda/derecha: girar.
-- `Ctrl izquierdo`: toque suave en la direccion pelota-Payne.
-- `Espacio`: remate fuerte en la direccion pelota-Payne.
-- Los rivales intentan acercarse, pero cuando llegan demasiado tarde les pasan cosas absurdas.
-- Cualquier tiro va al arco. El arquero nunca ataja.
-- El partido dura 3 minutos y termina con Payne levantando la copa.
+- `W/S` o flechas arriba/abajo: avanzar y retroceder.
+- `A/D` o flechas izquierda/derecha: girar; en camara lateral mueven sobre la pantalla.
+- `Shift izquierdo`: sprint.
+- `Q`: pase alto.
+- `E`: pase potente.
+- `Espacio`: remate cargable.
+- `C`: cambiar camara.
+- `P`: activar o desactivar Pro mode.
+- `M`: sonido ambiente.
+- `Escape`: volver o abrir/cerrar la room, segun el modo.
+
+En celular aparecen joystick, sprint, camara, sonido y los tres botones de tiro.
+
+## Multijugador
+
+El frontend se conecta por defecto a:
+
+```text
+https://futbol-fun-server.onrender.com
+```
+
+La partida usa servidor autoritativo: el navegador envia controles y tiros, mientras el
+servidor calcula jugadores, pelota, rebotes, goles, saques y arqueros. El jugador local
+se predice inmediatamente y los estados remotos se suavizan entre snapshots.
 
 ## Nota tecnica
 
-El juego usa Three.js desde CDN, asi que necesita conexion a internet la primera vez que se abre.
+El juego usa Three.js desde CDN, por lo que necesita internet la primera vez que se abre.
 
-Fondo del menu: `Tim Payne (2025, photo 1)` de JaumeBG, via Wikimedia Commons, licencia CC BY-SA 4.0.
+Fondo del menu: `Tim Payne (2025, photo 1)` de JaumeBG, via Wikimedia Commons,
+licencia CC BY-SA 4.0.
