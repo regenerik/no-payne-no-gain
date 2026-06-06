@@ -183,6 +183,7 @@ let spectatorJumpQueued = false;
 let spectatorConfetti = [];
 let lastSpectatorConfettiAt = 0;
 let matchEndRoomTimer = 0;
+const fullShotChargeSeconds = 0.64;
 
 let celebrationRenderer;
 let celebrationScene;
@@ -2174,11 +2175,10 @@ function releaseChargedShot() {
   if (spaceChargeStart === null) return;
   const heldSeconds = (performance.now() - spaceChargeStart) / 1000;
   spaceChargeStart = null;
-  const chargeSeconds = THREE.MathUtils.clamp(heldSeconds, 0, 0.8);
-  const chargeRatio = heldSeconds < 0.1 ? 0 : chargeSeconds / 0.8;
-  const effectiveCharge = chargeRatio * 0.85;
-  const power = 27.75 * (1 + effectiveCharge * 0.8);
-  const liftPower = 2.2 + effectiveCharge * 5.0;
+  const chargeSeconds = THREE.MathUtils.clamp(heldSeconds, 0, fullShotChargeSeconds);
+  const chargeRatio = heldSeconds < 0.1 ? 0 : chargeSeconds / fullShotChargeSeconds;
+  const power = 27.75 * (1 + chargeRatio * 0.68);
+  const liftPower = 2.2 + chargeRatio * 7.0;
   const percent = Math.round(chargeRatio * 80);
   const label = chargeRatio === 0
     ? "Payne remata fuerte hacia su eje"
@@ -2675,7 +2675,9 @@ function updateChargeMeter(dt) {
 
   if (spaceChargeStart !== null) {
     const heldSeconds = (performance.now() - spaceChargeStart) / 1000;
-    chargeMeterRatio = heldSeconds < 0.1 ? 0 : THREE.MathUtils.clamp(heldSeconds, 0, 0.8) / 0.8;
+    chargeMeterRatio = heldSeconds < 0.1
+      ? 0
+      : THREE.MathUtils.clamp(heldSeconds, 0, fullShotChargeSeconds) / fullShotChargeSeconds;
     chargeMeterOpacity = 1;
   } else {
     chargeMeterOpacity = Math.max(0, chargeMeterOpacity - dt * 1.8);
