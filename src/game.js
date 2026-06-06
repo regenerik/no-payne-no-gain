@@ -1247,6 +1247,7 @@ function emitLocalPlayerState() {
   lastNetStateAt = now;
   const velocity = getLocalNetworkVelocity();
   (socket.volatile || socket).emit("player:input", {
+    matchId: currentMatchId,
     seq: ++localInputSeq,
     angle: player.rotation.y,
     vx: velocity.x,
@@ -1849,6 +1850,7 @@ function kickBall(power, label, chargeRatio = 0, liftPower = 0, soundKind = "sho
   if (usesNetworkBallAuthority()) {
     pendingLocalKickId = `kick-${getLocalPlayerId()}-${++localKickSeq}`;
     socket.emit("ball:kick", {
+      matchId: currentMatchId,
       kickId: pendingLocalKickId,
       power,
       chargeRatio,
