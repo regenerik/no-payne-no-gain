@@ -47,6 +47,7 @@ const timerEl = document.querySelector("#timer");
 const scoreEl = document.querySelector("#score");
 const momentEl = document.querySelector("#moment");
 const goalBanner = document.querySelector("#goalBanner");
+const controlsEl = document.querySelector(".controls");
 const playerOverlay = document.querySelector("#playerOverlay");
 const chargeMeter = document.querySelector("#chargeMeter");
 const chargeFill = document.querySelector("#chargeFill");
@@ -175,6 +176,12 @@ let kickoffTakerId = null;
 let touchSprintActive = false;
 let lobbyPreviewMode = false;
 let multiplayerRooms = [];
+let spectatorViewing = false;
+let spectatorJumpVelocity = 0;
+let spectatorGrounded = true;
+let spectatorJumpQueued = false;
+let spectatorConfetti = [];
+let lastSpectatorConfettiAt = 0;
 
 let celebrationRenderer;
 let celebrationScene;
@@ -415,18 +422,21 @@ async function connectOnlineServer() {
       updateSpectatorNotice();
       if (multiplayerMode) {
         const nextLocalTeam = room.players.find((roomPlayer) => roomPlayer.id === getLocalPlayerId())?.team;
+        if (nextLocalTeam !== "spectators") spectatorViewing = false;
         syncMultiplayerTeamsToField({ preserveLocal: previousLocalTeam === nextLocalTeam });
       }
     });
     socket.on("room:started", (room) => {
       activeRoom = room;
       currentMatchId = room.matchState?.matchId || null;
+      spectatorViewing = false;
       roomTimeInput.value = room.settings?.timeLimit || 3;
       roomScoreInput.value = room.settings?.scoreLimit || 3;
       roomProModeToggle.checked = room.settings?.proMode === true;
       roomKeeperToggle.checked = room.settings?.keeperEnabled === true;
       startGame({ multiplayer: true });
       if (room.matchState) applyAuthoritativeSnapshot(room.matchState, true);
+      if (getLocalRoomPlayer()?.team === "spectators") openRoomOverlay();
     });
     socket.on("room:ended", (room) => {
       activeRoom = room;
@@ -437,6 +447,13 @@ async function connectOnlineServer() {
     });
     socket.on("match:snapshot", (snapshot) => {
       applyAuthoritativeSnapshot(snapshot);
+    });
+    socket.on("spectator:confetti", ({ playerId, matchId } = {}) => {
+      if (matchId !== currentMatchId) return;
+      const unit = playerId === getLocalPlayerId()
+        ? player
+        : multiplayerActors.find((actor) => actor.userData.playerId === playerId);
+      if (unit?.visible) spawnSpectatorConfetti(unit.position);
     });
     socket.on("ball:kicked", (kick) => {
       if (kick.playerId !== getLocalPlayerId()) {
@@ -567,7 +584,10 @@ function createPlayer(isHero = false, team = "red") {
   const limbs = { arms: [], legs: [] };
   const kit = isHero
     ? new THREE.MeshStandardMaterial({ map: createKitTexture(multiplayerMode ? team : "neutral"), roughness: 0.52 })
-    : new THREE.MeshStandardMaterial({ color: team === "blue" ? 0x2457d6 : 0xa5182d, roughness: 0.62 });
+    : new THREE.MeshStandardMaterial({
+        color: team === "blue" ? 0x2457d6 : team === "spectators" ? 0xf2c84b : 0xa5182d,
+        roughness: 0.62,
+      });
   const skin = new THREE.MeshStandardMaterial({ color: 0xd7a36f, roughness: 0.8 });
   const dark = new THREE.MeshStandardMaterial({ color: isHero ? 0x101010 : 0x16203a, roughness: 0.7 });
 
@@ -648,6 +668,82 @@ function animatePlayerRun(unit, dt, moving) {
   unit.userData.limbs.legs.forEach((leg) => {
     leg.rotation.x = swing * leg.userData.side;
     leg.rotation.z = 0;
+  });
+}
+
+function getSpectatorFloorHeight(x, z) {
+  const sideDistance = Math.abs(x) - (field.width / 2 + 5.4);
+  const endDistance = Math.abs(z) - (field.length / 2 + 5.4);
+  const onSideStand = Math.abs(x) >= field.width / 2 + 5
+    && Math.abs(x) <= field.width / 2 + 15
+    && Math.abs(z) <= field.length / 2 + 10;
+  const onEndStand = Math.abs(z) >= field.length / 2 + 5
+    && Math.abs(z) <= field.length / 2 + 15
+    && Math.abs(x) <= field.width / 2 + 10;
+  const distance = onSideStand && (!onEndStand || sideDistance >= endDistance)
+    ? sideDistance
+    : endDistance;
+  const row = THREE.MathUtils.clamp(Math.round(distance / 0.74), 0, 12);
+  return 1.15 + row * 0.34;
+}
+
+function constrainSpectatorToStands(unit) {
+  const outerX = field.width / 2 + 14.35;
+  const outerZ = field.length / 2 + 14.35;
+  const innerX = field.width / 2 + 5;
+  const innerZ = field.length / 2 + 5;
+  unit.position.x = THREE.MathUtils.clamp(unit.position.x, -outerX, outerX);
+  unit.position.z = THREE.MathUtils.clamp(unit.position.z, -outerZ, outerZ);
+  if (Math.abs(unit.position.x) < innerX && Math.abs(unit.position.z) < innerZ) {
+    const toSide = innerX - Math.abs(unit.position.x);
+    const toEnd = innerZ - Math.abs(unit.position.z);
+    if (toSide < toEnd) unit.position.x = Math.sign(unit.position.x || 1) * innerX;
+    else unit.position.z = Math.sign(unit.position.z || 1) * innerZ;
+  }
+}
+
+function spawnSpectatorConfetti(origin) {
+  if (!scene) return;
+  const colors = [0xffffff, 0x7cffb2, 0xf7c948, 0x91c9ff, 0xff5671];
+  for (let i = 0; i < 28; i += 1) {
+    const paper = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.11, 0.24),
+      new THREE.MeshBasicMaterial({
+        color: colors[i % colors.length],
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.96,
+      })
+    );
+    paper.position.copy(origin).add(new THREE.Vector3(
+      (Math.random() - 0.5) * 1.2,
+      3.1 + Math.random() * 0.8,
+      (Math.random() - 0.5) * 1.2
+    ));
+    paper.userData.velocity = new THREE.Vector3(
+      (Math.random() - 0.5) * 5.5,
+      3.5 + Math.random() * 4,
+      (Math.random() - 0.5) * 5.5
+    );
+    paper.userData.life = 2.6 + Math.random() * 1.2;
+    scene.add(paper);
+    spectatorConfetti.push(paper);
+  }
+}
+
+function updateSpectatorConfetti(dt) {
+  spectatorConfetti = spectatorConfetti.filter((paper) => {
+    paper.userData.life -= dt;
+    paper.userData.velocity.y -= 5.5 * dt;
+    paper.position.addScaledVector(paper.userData.velocity, dt);
+    paper.rotation.x += dt * 5;
+    paper.rotation.z += dt * 7;
+    paper.material.opacity = THREE.MathUtils.clamp(paper.userData.life / 0.8, 0, 1);
+    if (paper.userData.life <= 0) {
+      scene.remove(paper);
+      return false;
+    }
+    return true;
   });
 }
 
@@ -1053,6 +1149,15 @@ function isKickoffTaker(unit) {
 }
 
 function getMultiplayerStartPositionFor(roomPlayer, index, total) {
+  if (roomPlayer?.team === "spectators") {
+    const side = index % 2 === 0 ? -1 : 1;
+    const row = 3 + (index % 6);
+    return new THREE.Vector3(
+      side * (field.width / 2 + 5.4 + row * 0.74),
+      1.15 + row * 0.34,
+      THREE.MathUtils.clamp(-24 + index * 6, -32, 32)
+    );
+  }
   if (
     kickoffLocked
     && roomPlayer?.team === kickoffTeam
@@ -1155,7 +1260,7 @@ function applyPlayerTeam(unit, team) {
     });
   } else {
     unit.userData.body.material = new THREE.MeshStandardMaterial({
-      color: team === "blue" ? 0x2457d6 : 0xa5182d,
+      color: team === "blue" ? 0x2457d6 : team === "spectators" ? 0xf2c84b : 0xa5182d,
       roughness: 0.62,
     });
   }
@@ -1174,7 +1279,9 @@ function syncMultiplayerTeamsToField({ preserveLocal = false } = {}) {
   const localPlayer = getLocalRoomPlayer();
   player.userData.name = localPlayer.name;
   player.userData.isLocal = true;
-  player.visible = localPlayer.team === "red" || localPlayer.team === "blue";
+  player.visible = localPlayer.team === "red"
+    || localPlayer.team === "blue"
+    || (localPlayer.team === "spectators" && spectatorViewing);
   if (player.visible) {
     applyPlayerTeam(player, localPlayer.team);
     if (!preserveLocal) {
@@ -1235,12 +1342,13 @@ function updateRemoteActors(dt) {
 function getLocalNetworkVelocity() {
   if (isKickoffTaker(player)) return new THREE.Vector3();
   const sprintMultiplier = touchSprintActive || keys.has("ShiftLeft") ? 1.35 : 1;
+  const baseSpeed = getLocalRoomPlayer()?.team === "spectators" ? 8.2 : 10.5;
   if (touchMoveVector.lengthSq() >= 0.006) {
     const analog = THREE.MathUtils.clamp(touchMoveVector.length(), 0.28, 1);
     const throttleScale = cameraMode === "broadcast"
       ? analog
       : Math.abs(touchMoveVector.y) * analog;
-    return playerMoveDir.clone().normalize().multiplyScalar(10.5 * sprintMultiplier * throttleScale);
+    return playerMoveDir.clone().normalize().multiplyScalar(baseSpeed * sprintMultiplier * throttleScale);
   }
   const moving = cameraMode === "broadcast"
     ? keys.has("KeyW") || keys.has("ArrowUp")
@@ -1250,7 +1358,7 @@ function getLocalNetworkVelocity() {
     : keys.has("KeyW") || keys.has("ArrowUp")
       || keys.has("KeyS") || keys.has("ArrowDown");
   if (!moving || playerMoveDir.lengthSq() < 0.001) return new THREE.Vector3();
-  return playerMoveDir.clone().normalize().multiplyScalar(10.5 * sprintMultiplier);
+  return playerMoveDir.clone().normalize().multiplyScalar(baseSpeed * sprintMultiplier);
 }
 
 function emitLocalPlayerState() {
@@ -1266,7 +1374,9 @@ function emitLocalPlayerState() {
     angle: player.rotation.y,
     vx: velocity.x,
     vz: velocity.z,
+    jump: spectatorJumpQueued,
   });
+  spectatorJumpQueued = false;
 }
 
 function emitBallState() {
@@ -1320,6 +1430,7 @@ function applyAuthoritativeSnapshot(snapshot = {}, immediate = false) {
   const snapshotMatchId = typeof snapshot.matchId === "string" ? snapshot.matchId : null;
   if (currentMatchId && snapshotMatchId !== currentMatchId) return;
   if (!currentMatchId && snapshotMatchId) currentMatchId = snapshotMatchId;
+  if (activeRoom) activeRoom.matchState = snapshot;
   const seq = Number(snapshot.seq) || 0;
   if (seq && seq <= lastSnapshotSeq) return;
   if (seq) lastSnapshotSeq = seq;
@@ -1466,13 +1577,23 @@ function addMultiplayerActors() {
   multiplayerActors = [];
   if (!multiplayerMode || !activeRoom) return;
 
-  ["red", "blue"].forEach((team) => {
+  ["red", "blue", "spectators"].forEach((team) => {
     const teamPlayers = activeRoom.players.filter((roomPlayer) => roomPlayer.team === team);
     teamPlayers.forEach((roomPlayer, index) => {
       if (roomPlayer.id === getLocalPlayerId()) return;
       const actor = createPlayer(false, team);
-      actor.position.copy(getMultiplayerStartPositionFor(roomPlayer, index, teamPlayers.length));
-      actor.rotation.y = team === "red" ? 0 : Math.PI;
+      if (team === "spectators") {
+        const side = index % 2 === 0 ? -1 : 1;
+        const row = 3 + (index % 6);
+        actor.position.set(
+          side * (field.width / 2 + 5.4 + row * 0.74),
+          1.15 + row * 0.34,
+          THREE.MathUtils.clamp(-24 + index * 6, -32, 32)
+        );
+      } else {
+        actor.position.copy(getMultiplayerStartPositionFor(roomPlayer, index, teamPlayers.length));
+      }
+      actor.rotation.y = team === "blue" ? Math.PI : 0;
       actor.userData.name = roomPlayer.name;
       actor.userData.playerId = roomPlayer.id;
       actor.userData.team = team;
@@ -1517,7 +1638,10 @@ function setupGame() {
   player.userData.name = multiplayerMode ? localRoomPlayer.name : "Payne";
   player.userData.team = multiplayerMode ? localRoomPlayer.team : "red";
   player.userData.isLocal = true;
-  player.visible = !multiplayerMode || localRoomPlayer.team === "red" || localRoomPlayer.team === "blue";
+  player.visible = !multiplayerMode
+    || localRoomPlayer.team === "red"
+    || localRoomPlayer.team === "blue"
+    || (localRoomPlayer.team === "spectators" && spectatorViewing);
   player.position.copy(getLocalMultiplayerStartPosition());
   scene.add(player);
   addMultiplayerActors();
@@ -1598,6 +1722,11 @@ function setupGame() {
     : (proModeToggle ? proModeToggle.checked : false);
   ballTrails.forEach((puff) => scene.remove(puff));
   ballTrails = [];
+  spectatorConfetti.forEach((paper) => scene.remove(paper));
+  spectatorConfetti = [];
+  spectatorJumpVelocity = 0;
+  spectatorGrounded = true;
+  spectatorJumpQueued = false;
   goalCooldown = 0;
   ended = false;
   cameraMode = lobbyPreviewMode || (multiplayerMode && !player.visible) ? "broadcast" : "third";
@@ -1612,6 +1741,7 @@ function setupGame() {
   if (roomGameBtn) roomGameBtn.style.display = multiplayerMode ? "block" : "none";
   backMenuBtn?.classList.toggle("with-room-button", multiplayerMode);
   setupPlayerTags();
+  updateGameplayControlHints();
   updateChargeMeter(0);
   animateGame();
 }
@@ -1843,6 +1973,7 @@ function prepareKeeperForShot(dir, chargeRatio) {
 
 function kickBall(power, label, chargeRatio = 0, liftPower = 0, soundKind = "shot") {
   if (!player || !player.visible || !ball || goalCooldown > 0) return;
+  if (multiplayerMode && getLocalRoomPlayer()?.team === "spectators") return;
   const distance = player.position.distanceTo(ball.position);
   if (distance > 3.2) {
     momentEl.textContent = "Payne mira la pelota: todavia no llega";
@@ -1919,9 +2050,42 @@ function vibrateKick(duration = 14) {
 }
 
 function toggleCameraMode() {
+  if (multiplayerMode && spectatorViewing && getLocalRoomPlayer()?.team === "spectators") return;
   cameraMode = cameraMode === "third" ? "broadcast" : "third";
   if (cameraMode === "broadcast" && ball) broadcastFocusZ = ball.position.z;
   momentEl.textContent = cameraMode === "broadcast" ? "Camara clasica activada" : "Camara Payne activada";
+}
+
+function updateGameplayControlHints() {
+  if (!controlsEl) return;
+  const spectator = multiplayerMode
+    && spectatorViewing
+    && getLocalRoomPlayer()?.team === "spectators";
+  controlsEl.innerHTML = spectator
+    ? `
+      <span>W/S: caminar</span>
+      <span>Izq/Der: girar</span>
+      <span>Shift: correr</span>
+      <span>Espacio: saltar</span>
+      <span>Q: papelitos</span>
+      <span>Room: volver a la sala</span>
+    `
+    : `
+      <span>Arriba/W: avanzar</span>
+      <span>Izq/Der: girar</span>
+      <span>Shift: correr</span>
+      <span>C: camara</span>
+      <span>P: pro mode</span>
+      <span>M: ambiente on/off</span>
+      <span>Q: pase alto</span>
+      <span>E: pase potente</span>
+      <span>Espacio: remate</span>
+    `;
+  if (touchSoftBtn) touchSoftBtn.textContent = spectator ? "Papelitos" : "Pase alto";
+  if (touchShotBtn) touchShotBtn.textContent = spectator ? "Saltar" : "Remate";
+  if (touchPassBtn) touchPassBtn.style.display = spectator ? "none" : "";
+  if (touchCameraBtn) touchCameraBtn.style.display = spectator ? "none" : "";
+  if (touchProBtn) touchProBtn.style.display = spectator ? "none" : "";
 }
 
 function celebrateGoal(scoringTeam = "payne") {
@@ -2343,6 +2507,10 @@ function updateBallShadow() {
 
 function updateKickArrow() {
   if (!kickArrow || !player || !ball || goalCooldown > 0) return;
+  if (multiplayerMode && getLocalRoomPlayer()?.team === "spectators") {
+    kickArrow.visible = false;
+    return;
+  }
   const dir = ballDirectionFromPayne();
   const distance = player.position.distanceTo(ball.position);
   const inRange = distance <= 3.2;
@@ -2398,8 +2566,59 @@ function getTouchMoveDirection() {
     .normalize();
 }
 
+function updateSpectatorPlayer(dt) {
+  const touchDir = getTouchMoveDirection();
+  const turn = Number(keys.has("KeyA") || keys.has("ArrowLeft"))
+    - Number(keys.has("KeyD") || keys.has("ArrowRight"));
+  const throttle = Number(keys.has("KeyW") || keys.has("ArrowUp"))
+    - Number(keys.has("KeyS") || keys.has("ArrowDown"));
+  let moving = false;
+  const speed = 8.2 * (touchSprintActive || keys.has("ShiftLeft") ? 1.35 : 1);
+
+  if (touchDir) {
+    playerAngle = Math.atan2(touchDir.x, touchDir.z);
+    playerMoveDir.copy(touchDir);
+    player.position.addScaledVector(touchDir, speed * THREE.MathUtils.clamp(touchMoveVector.length(), 0.28, 1) * dt);
+    moving = true;
+  } else {
+    if (turn !== 0) playerAngle += turn * 3.1 * dt;
+    if (throttle !== 0) {
+      const forward = new THREE.Vector3(Math.sin(playerAngle), 0, Math.cos(playerAngle));
+      player.position.addScaledVector(forward, throttle * speed * dt);
+      playerMoveDir.copy(forward).multiplyScalar(Math.sign(throttle)).normalize();
+      moving = true;
+    } else {
+      playerMoveDir.set(Math.sin(playerAngle), 0, Math.cos(playerAngle));
+    }
+  }
+
+  constrainSpectatorToStands(player);
+  const floor = getSpectatorFloorHeight(player.position.x, player.position.z);
+  if (spectatorJumpQueued && spectatorGrounded) {
+    spectatorJumpVelocity = 6.2;
+    spectatorGrounded = false;
+  }
+  if (!spectatorGrounded) {
+    spectatorJumpVelocity -= 14 * dt;
+    player.position.y += spectatorJumpVelocity * dt;
+    if (player.position.y <= floor) {
+      player.position.y = floor;
+      spectatorJumpVelocity = 0;
+      spectatorGrounded = true;
+    }
+  } else {
+    player.position.y = floor;
+  }
+  player.rotation.y = playerAngle;
+  animatePlayerRun(player, dt, moving);
+}
+
 function updatePlayer(dt) {
   if (!player.visible) return;
+  if (multiplayerMode && getLocalRoomPlayer()?.team === "spectators" && spectatorViewing) {
+    updateSpectatorPlayer(dt);
+    return;
+  }
   const kickoffTaker = isKickoffTaker(player);
   const touchDir = getTouchMoveDirection();
   if (touchDir) {
@@ -2558,6 +2777,7 @@ function animateGame() {
   updateBall(dt);
   updateBallShadow();
   updateBallTrails(dt);
+  updateSpectatorConfetti(dt);
   updateKickArrow();
   updateGoalkeeper(dt);
   updateCamera(dt);
@@ -2662,6 +2882,7 @@ function finishMatch() {
   gameFrame = 0;
   stopGameAudio();
   if (multiplayerMode) {
+    spectatorViewing = false;
     showMultiplayerFinalBanner();
     roomOverlayOpen = false;
     roomScreen.classList.remove("is-overlay");
@@ -2763,6 +2984,7 @@ function renderRoomList() {
             activeRoom = response.room;
             selectedPlayerId = socket.id;
             if (response.room.started) {
+              spectatorViewing = false;
               startGame({ multiplayer: true });
               openRoomOverlay();
             } else {
@@ -2820,6 +3042,7 @@ function leaveRoom() {
   if (gameFrame) cancelAnimationFrame(gameFrame);
   gameFrame = 0;
   multiplayerMode = false;
+  spectatorViewing = false;
   roomOverlayOpen = false;
   activeRoom = null;
   selectedPlayerId = null;
@@ -2950,6 +3173,7 @@ function renderRoom() {
   if (!activeRoom) return;
   const canManageRoom = isCurrentRoomHost();
   const matchRunning = activeRoom.started === true;
+  const localIsSpectator = getLocalRoomPlayer()?.team === "spectators";
   activeRoomName.textContent = activeRoom.name;
   if (activeRoom.settings) {
     roomTimeInput.value = activeRoom.settings.timeLimit || 3;
@@ -2963,7 +3187,7 @@ function renderRoom() {
   lockRoomBtn.textContent = roomLocked ? "Unlock" : "Lock";
   startMultiplayerGameBtn.textContent = canManageRoom
     ? "Start game"
-    : (matchRunning ? "Back to game" : "Waiting for a new game");
+    : (matchRunning ? (localIsSpectator ? "Mirar partido" : "Back to game") : "Waiting for a new game");
   startMultiplayerGameBtn.disabled = !canManageRoom && !matchRunning;
   startMultiplayerGameBtn.style.display = "";
   startMultiplayerGameBtn.classList.toggle("is-waiting", !canManageRoom && !matchRunning);
@@ -3193,6 +3417,14 @@ function setupTouchControls() {
   });
   touchSoftBtn?.addEventListener("pointerdown", (event) => {
     event.preventDefault();
+    if (multiplayerMode && spectatorViewing && getLocalRoomPlayer()?.team === "spectators") {
+      const now = performance.now();
+      if (now - lastSpectatorConfettiAt >= 700) {
+        lastSpectatorConfettiAt = now;
+        socket?.emit("spectator:confetti", { matchId: currentMatchId });
+      }
+      return;
+    }
     kickBall(16.66, "Payne mete pase alto", 0, 8.4, "pass");
   });
   touchPassBtn?.addEventListener("pointerdown", (event) => {
@@ -3201,11 +3433,16 @@ function setupTouchControls() {
   });
   touchShotBtn?.addEventListener("pointerdown", (event) => {
     event.preventDefault();
+    if (multiplayerMode && spectatorViewing && getLocalRoomPlayer()?.team === "spectators") {
+      spectatorJumpQueued = true;
+      return;
+    }
     beginChargedShot();
   });
   ["pointerup", "pointercancel", "lostpointercapture"].forEach((eventName) => {
     touchShotBtn?.addEventListener(eventName, (event) => {
       event.preventDefault();
+      if (multiplayerMode && spectatorViewing && getLocalRoomPlayer()?.team === "spectators") return;
       releaseChargedShot();
     });
   });
@@ -3265,6 +3502,12 @@ roomProModeToggle.addEventListener("change", syncOnlineRoomSettings);
 roomKeeperToggle.addEventListener("change", syncOnlineRoomSettings);
 startMultiplayerGameBtn.addEventListener("click", () => {
   if (!isCurrentRoomHost()) {
+    if (!activeRoom?.started) return;
+    if (getLocalRoomPlayer()?.team === "spectators") {
+      spectatorViewing = true;
+      startGame({ multiplayer: true });
+      return;
+    }
     if (multiplayerMode) closeRoomOverlay();
     return;
   }
@@ -3323,6 +3566,21 @@ window.addEventListener("keydown", (event) => {
   }
   keys.add(event.code);
   if (event.repeat) return;
+  const watchingFromStands = multiplayerMode
+    && spectatorViewing
+    && getLocalRoomPlayer()?.team === "spectators";
+  if (watchingFromStands && event.code === "Space") {
+    spectatorJumpQueued = true;
+    return;
+  }
+  if (watchingFromStands && event.code === "KeyQ") {
+    const now = performance.now();
+    if (now - lastSpectatorConfettiAt >= 700) {
+      lastSpectatorConfettiAt = now;
+      socket?.emit("spectator:confetti", { matchId: currentMatchId });
+    }
+    return;
+  }
   if (event.code === "KeyQ") {
     kickBall(16.66, "Payne mete pase alto", 0, 8.4, "pass");
   }
@@ -3361,7 +3619,10 @@ window.addEventListener("keyup", (event) => {
     event.preventDefault();
   }
   keys.delete(event.code);
-  if (event.code === "Space") {
+  const watchingFromStands = multiplayerMode
+    && spectatorViewing
+    && getLocalRoomPlayer()?.team === "spectators";
+  if (event.code === "Space" && !watchingFromStands) {
     releaseChargedShot();
   }
 });
@@ -3397,6 +3658,7 @@ if (sharedServerUrl && sharedRoomId) {
           activeRoom = response.room;
           selectedPlayerId = socket.id;
           if (response.room.started) {
+            spectatorViewing = false;
             startGame({ multiplayer: true });
             openRoomOverlay();
           } else {
