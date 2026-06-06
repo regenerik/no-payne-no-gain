@@ -153,6 +153,7 @@ let lastNetStateAt = 0;
 let lastBallNetStateAt = 0;
 let localInputSeq = 0;
 let lastSnapshotSeq = 0;
+let currentMatchId = null;
 let authoritativeLocalTarget = new THREE.Vector3();
 let hasAuthoritativeLocalTarget = false;
 let networkBallOwnerId = null;
@@ -405,6 +406,7 @@ async function connectOnlineServer() {
     });
     socket.on("room:started", (room) => {
       activeRoom = room;
+      currentMatchId = room.matchState?.matchId || null;
       roomTimeInput.value = room.settings?.timeLimit || 3;
       roomScoreInput.value = room.settings?.scoreLimit || 3;
       roomProModeToggle.checked = room.settings?.proMode === true;
@@ -1300,6 +1302,9 @@ function applyNetworkBallState(state = {}) {
 
 function applyAuthoritativeSnapshot(snapshot = {}, immediate = false) {
   if (!usesNetworkBallAuthority() || !snapshot || !ball || !player) return;
+  const snapshotMatchId = typeof snapshot.matchId === "string" ? snapshot.matchId : null;
+  if (currentMatchId && snapshotMatchId !== currentMatchId) return;
+  if (!currentMatchId && snapshotMatchId) currentMatchId = snapshotMatchId;
   const seq = Number(snapshot.seq) || 0;
   if (seq && seq <= lastSnapshotSeq) return;
   if (seq) lastSnapshotSeq = seq;
@@ -3045,6 +3050,8 @@ function startGame(options = {}) {
   clearPlayerTags();
   roomOverlayOpen = false;
   multiplayerMode = Boolean(options.multiplayer);
+  if (!multiplayerMode) currentMatchId = null;
+  else if (activeRoom?.matchState?.matchId) currentMatchId = activeRoom.matchState.matchId;
   lobbyPreviewMode = Boolean(options.lobbyPreview);
   showScreen(gameScreen);
   if (lobbyPreviewMode) stopGameAudio();
