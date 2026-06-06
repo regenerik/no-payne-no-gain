@@ -40,6 +40,7 @@ const startMultiplayerGameBtn = document.querySelector("#startMultiplayerGameBtn
 const roomTimeInput = document.querySelector("#roomTimeInput");
 const roomScoreInput = document.querySelector("#roomScoreInput");
 const roomProModeToggle = document.querySelector("#roomProModeToggle");
+const roomKeeperToggle = document.querySelector("#roomKeeperToggle");
 const pickStadiumBtn = document.querySelector("#pickStadiumBtn");
 const timerEl = document.querySelector("#timer");
 const scoreEl = document.querySelector("#score");
@@ -110,6 +111,7 @@ let ballShadow;
 let kickArrow;
 let goalKeeper;
 let keeperState;
+let goalKeepers = [];
 let opponents = [];
 let multiplayerActors = [];
 let playerTags = [];
@@ -402,6 +404,7 @@ async function connectOnlineServer() {
       roomTimeInput.value = room.settings?.timeLimit || 3;
       roomScoreInput.value = room.settings?.scoreLimit || 3;
       roomProModeToggle.checked = room.settings?.proMode === true;
+      roomKeeperToggle.checked = room.settings?.keeperEnabled === true;
       startGame({ multiplayer: true });
     });
     socket.on("room:ended", (room) => {
@@ -577,6 +580,30 @@ function createPlayer(isHero = false, team = "red") {
   group.userData.limbs = limbs;
   group.userData.walkTime = Math.random() * Math.PI * 2;
   return group;
+}
+
+function roomKeepersEnabled() {
+  if (!multiplayerMode) return false;
+  if (activeRoom?.settings) return activeRoom.settings.keeperEnabled === true;
+  return roomKeeperToggle?.checked === true;
+}
+
+function createGoalkeeper(side = 1, team = "red") {
+  const keeper = createPlayer(false, team);
+  keeper.scale.set(0.95, 0.95, 0.95);
+  keeper.position.set(0, 0, side * (field.length / 2 - 4.5));
+  keeper.rotation.y = side > 0 ? Math.PI : 0;
+  keeper.userData.side = side;
+  scene.add(keeper);
+  return {
+    unit: keeper,
+    side,
+    mode: "ready",
+    targetX: 0,
+    targetZ: side * (field.length / 2 - 4.5),
+    diveTimer: 0,
+    diveSide: 1,
+  };
 }
 
 function animatePlayerRun(unit, dt, moving) {
@@ -1263,6 +1290,7 @@ function applyNetworkKickRequest(kick = {}) {
   dir.normalize();
   releaseKickoffIfNeeded(actor.userData?.team, getUnitPlayerId(actor));
   lastAppliedKickId = kick.kickId || lastAppliedKickId;
+  prepareKeeperForShot(dir, chargeRatio);
   playKickSound(kick.soundKind || "shot", chargeRatio);
   ballControlled = false;
   ballOwner = null;
@@ -1410,21 +1438,19 @@ function setupGame() {
   kickArrow = createKickArrow();
   scene.add(kickArrow);
 
+  goalKeepers = [];
   if (multiplayerMode) {
     goalKeeper = null;
     keeperState = null;
+    if (!lobbyPreviewMode && roomKeepersEnabled()) {
+      goalKeepers = [
+        createGoalkeeper(-1, "red"),
+        createGoalkeeper(1, "blue"),
+      ];
+    }
   } else {
-    goalKeeper = createPlayer(false);
-    goalKeeper.scale.set(0.95, 0.95, 0.95);
-    goalKeeper.position.set(0, 0, field.length / 2 - 4.5);
-    scene.add(goalKeeper);
-    keeperState = {
-      mode: "ready",
-      targetX: 0,
-      targetZ: field.length / 2 - 4.5,
-      diveTimer: 0,
-      diveSide: 1,
-    };
+    keeperState = createGoalkeeper(1, "red");
+    goalKeeper = keeperState.unit;
   }
 
   opponents = [];
@@ -1669,16 +1695,26 @@ function updateBallTrails(dt) {
   });
 }
 
-function predictGoalLineX(dir) {
-  const goalZ = field.length / 2 - 0.42;
+function predictGoalLineX(dir, side = 1) {
+  const goalZ = side * (field.length / 2 - 0.42);
   if (Math.abs(dir.z) < 0.001) return ball.position.x;
   const t = (goalZ - ball.position.z) / dir.z;
   return ball.position.x + dir.x * t;
 }
 
+function getKeeperStates() {
+  return multiplayerMode ? goalKeepers : (keeperState ? [keeperState] : []);
+}
+
+function getKeeperForShot(dir) {
+  const side = dir.z >= 0 ? 1 : -1;
+  return getKeeperStates().find((state) => state.side === side) || null;
+}
+
 function prepareKeeperForShot(dir, chargeRatio) {
-  if (!keeperState || dir.z <= 0.16) return;
-  const predictedX = predictGoalLineX(dir);
+  const targetKeeper = getKeeperForShot(dir);
+  if (!targetKeeper || Math.abs(dir.z) <= 0.16) return;
+  const predictedX = predictGoalLineX(dir, targetKeeper.side);
   if (predictedX < -6.3 || predictedX > 6.3) return;
 
   const saveChance = 0.5 * (1 - THREE.MathUtils.clamp(chargeRatio, 0, 1));
@@ -1687,11 +1723,11 @@ function prepareKeeperForShot(dir, chargeRatio) {
     ? predictedX
     : predictedX + (Math.random() > 0.5 ? 1 : -1) * (2.8 + Math.random() * 2.7);
 
-  keeperState.mode = "dive";
-  keeperState.targetX = THREE.MathUtils.clamp(chosenX, -5.4, 5.4);
-  keeperState.targetZ = field.length / 2 - 4.15;
-  keeperState.diveTimer = 1.05;
-  keeperState.diveSide = keeperState.targetX >= goalKeeper.position.x ? 1 : -1;
+  targetKeeper.mode = "dive";
+  targetKeeper.targetX = THREE.MathUtils.clamp(chosenX, -5.4, 5.4);
+  targetKeeper.targetZ = targetKeeper.side * (field.length / 2 - 4.15);
+  targetKeeper.diveTimer = 1.05;
+  targetKeeper.diveSide = targetKeeper.targetX >= targetKeeper.unit.position.x ? 1 : -1;
 }
 
 function kickBall(power, label, chargeRatio = 0, liftPower = 0, soundKind = "shot") {
@@ -1860,51 +1896,58 @@ function celebrateGoal(scoringTeam = "payne") {
 }
 
 function updateGoalkeeper(dt) {
-  if (!goalKeeper || !keeperState) return;
+  const states = getKeeperStates();
+  if (states.length === 0) return;
 
-  const baseZ = field.length / 2 - 4.5;
-  if (keeperState.mode === "dive") {
-    keeperState.diveTimer -= dt;
-    goalKeeper.position.x = THREE.MathUtils.lerp(goalKeeper.position.x, keeperState.targetX, 1 - Math.pow(0.006, dt));
-    goalKeeper.position.z = THREE.MathUtils.lerp(goalKeeper.position.z, keeperState.targetZ, 1 - Math.pow(0.01, dt));
-    goalKeeper.rotation.z = THREE.MathUtils.lerp(goalKeeper.rotation.z, -keeperState.diveSide * 1.24, 1 - Math.pow(0.006, dt));
-    goalKeeper.position.y = Math.max(0, Math.sin((1.05 - keeperState.diveTimer) * Math.PI) * 0.5);
+  states.forEach((state) => {
+    const unit = state.unit;
+    const baseZ = state.side * (field.length / 2 - 4.5);
+    if (state.mode === "dive") {
+      state.diveTimer -= dt;
+      unit.position.x = THREE.MathUtils.lerp(unit.position.x, state.targetX, 1 - Math.pow(0.006, dt));
+      unit.position.z = THREE.MathUtils.lerp(unit.position.z, state.targetZ, 1 - Math.pow(0.01, dt));
+      unit.rotation.z = THREE.MathUtils.lerp(unit.rotation.z, -state.diveSide * 1.24, 1 - Math.pow(0.006, dt));
+      unit.position.y = Math.max(0, Math.sin((1.05 - state.diveTimer) * Math.PI) * 0.5);
 
-    if (goalKeeper.userData.limbs) {
-      goalKeeper.userData.limbs.arms.forEach((arm) => {
-        arm.rotation.x = -1.35;
-        arm.rotation.z = arm.userData.side * 0.62;
-      });
+      if (unit.userData.limbs) {
+        unit.userData.limbs.arms.forEach((arm) => {
+          arm.rotation.x = -1.35;
+          arm.rotation.z = arm.userData.side * 0.62;
+        });
+      }
+
+      if (state.diveTimer <= 0) {
+        state.mode = "recover";
+        state.diveTimer = 0.85;
+      }
+      return;
     }
 
-    if (keeperState.diveTimer <= 0) {
-      keeperState.mode = "recover";
-      keeperState.diveTimer = 0.85;
+    if (state.mode === "recover") {
+      state.diveTimer -= dt;
+      unit.rotation.z = THREE.MathUtils.lerp(unit.rotation.z, 0, 1 - Math.pow(0.004, dt));
+      unit.position.y = THREE.MathUtils.lerp(unit.position.y, 0, 0.16);
+      if (state.diveTimer <= 0) state.mode = "ready";
     }
-    return;
-  }
 
-  if (keeperState.mode === "recover") {
-    keeperState.diveTimer -= dt;
-    goalKeeper.rotation.z = THREE.MathUtils.lerp(goalKeeper.rotation.z, 0, 1 - Math.pow(0.004, dt));
-    goalKeeper.position.y = THREE.MathUtils.lerp(goalKeeper.position.y, 0, 0.16);
-    if (keeperState.diveTimer <= 0) keeperState.mode = "ready";
-  }
-
-  if (keeperState.mode === "ready") {
-    const trackX = THREE.MathUtils.clamp(ball.position.x, -4.8, 4.8);
-    goalKeeper.position.x = THREE.MathUtils.lerp(goalKeeper.position.x, trackX, 1 - Math.pow(0.02, dt));
-    goalKeeper.position.z = THREE.MathUtils.lerp(goalKeeper.position.z, baseZ, 0.08);
-    goalKeeper.position.y = THREE.MathUtils.lerp(goalKeeper.position.y, 0, 0.18);
-    goalKeeper.rotation.z = THREE.MathUtils.lerp(goalKeeper.rotation.z, 0, 0.14);
-    animatePlayerRun(goalKeeper, dt, Math.abs(trackX - goalKeeper.position.x) > 0.02);
-  }
+    if (state.mode === "ready") {
+      const trackX = THREE.MathUtils.clamp(ball.position.x, -4.8, 4.8);
+      unit.position.x = THREE.MathUtils.lerp(unit.position.x, trackX, 1 - Math.pow(0.02, dt));
+      unit.position.z = THREE.MathUtils.lerp(unit.position.z, baseZ, 0.08);
+      unit.position.y = THREE.MathUtils.lerp(unit.position.y, 0, 0.18);
+      unit.rotation.z = THREE.MathUtils.lerp(unit.rotation.z, 0, 0.14);
+      unit.rotation.y = state.side > 0 ? Math.PI : 0;
+      animatePlayerRun(unit, dt, Math.abs(trackX - unit.position.x) > 0.02);
+    }
+  });
 }
 
 function handleKeeperBallCollision(previousBallPosition) {
-  if (!goalKeeper || !ball || goalCooldown > 0) return false;
-  const keeperRadius = keeperState?.mode === "dive" ? 1.65 : 1.05;
-  const keeperCenter = goalKeeper.position.clone().add(new THREE.Vector3(0, 1.2, 0));
+  if (!ball || goalCooldown > 0) return false;
+  for (const state of getKeeperStates()) {
+  const unit = state.unit;
+  const keeperRadius = state?.mode === "dive" ? 1.65 : 1.05;
+  const keeperCenter = unit.position.clone().add(new THREE.Vector3(0, 1.2, 0));
   const ballCenter = ball.position.clone();
   let impactPoint = ballCenter;
 
@@ -1926,19 +1969,21 @@ function handleKeeperBallCollision(previousBallPosition) {
   const delta = impactPoint.clone().sub(keeperCenter);
   const horizontal = new THREE.Vector3(delta.x, 0, delta.z);
   const verticalOk = Math.min(ball.position.y, impactPoint.y) < 3.2;
-  if (!verticalOk || horizontal.length() > keeperRadius + 0.42) return false;
+  if (!verticalOk || horizontal.length() > keeperRadius + 0.42) continue;
 
-  const normal = horizontal.lengthSq() > 0.001 ? horizontal.normalize() : new THREE.Vector3(0, 0, -1);
+  const normal = horizontal.lengthSq() > 0.001 ? horizontal.normalize() : new THREE.Vector3(0, 0, -state.side);
   const incomingSpeed = Math.max(ballVelocity.length(), 9);
   ball.position.copy(impactPoint).addScaledVector(normal, keeperRadius + 0.62);
   ball.position.y = Math.max(impactPoint.y, 0.62);
   ballVelocity.copy(normal.multiplyScalar(incomingSpeed * 0.82));
-  ballVelocity.z = Math.min(ballVelocity.z, -Math.abs(ballVelocity.z) - 2.5);
+  ballVelocity.z += -state.side * (Math.abs(ballVelocity.z) + 2.5);
   ballVerticalVelocity = Math.max(ballVerticalVelocity * 0.25, 1.2);
   ballShotCharge = Math.max(ballShotCharge, 0.35);
   ballControlled = false;
   momentEl.textContent = "El arquero mete las manos y la pelota rebota";
   return true;
+  }
+  return false;
 }
 
 function getUnitForward(unit) {
@@ -2789,6 +2834,7 @@ function renderRoom() {
     roomTimeInput.value = activeRoom.settings.timeLimit || 3;
     roomScoreInput.value = activeRoom.settings.scoreLimit || 3;
     roomProModeToggle.checked = activeRoom.settings.proMode === true;
+    roomKeeperToggle.checked = activeRoom.settings.keeperEnabled === true;
   }
   renderPlayers(redTeamList, "red");
   renderPlayers(spectatorsList, "spectators");
@@ -2813,7 +2859,7 @@ function renderRoom() {
   ].forEach((button) => {
     button.style.display = canManageRoom ? "" : "none";
   });
-  [roomTimeInput, roomScoreInput, roomProModeToggle].forEach((input) => {
+  [roomTimeInput, roomScoreInput, roomProModeToggle, roomKeeperToggle].forEach((input) => {
     input.disabled = !canManageRoom;
   });
   if (pickStadiumBtn) pickStadiumBtn.style.display = canManageRoom ? "" : "none";
@@ -2894,6 +2940,7 @@ function syncOnlineRoomSettings() {
     timeLimit: roomTimeInput.value,
     scoreLimit: roomScoreInput.value,
     proMode: roomProModeToggle.checked,
+    keeperEnabled: roomKeeperToggle.checked,
   });
 }
 
@@ -3074,6 +3121,7 @@ leaveRoomBtn.addEventListener("click", leaveRoom);
 roomTimeInput.addEventListener("change", syncOnlineRoomSettings);
 roomScoreInput.addEventListener("change", syncOnlineRoomSettings);
 roomProModeToggle.addEventListener("change", syncOnlineRoomSettings);
+roomKeeperToggle.addEventListener("change", syncOnlineRoomSettings);
 startMultiplayerGameBtn.addEventListener("click", () => {
   if (!isCurrentRoomHost()) {
     if (multiplayerMode) closeRoomOverlay();
@@ -3084,6 +3132,7 @@ startMultiplayerGameBtn.addEventListener("click", () => {
       timeLimit: roomTimeInput.value,
       scoreLimit: roomScoreInput.value,
       proMode: roomProModeToggle.checked,
+      keeperEnabled: roomKeeperToggle.checked,
     });
     return;
   }
