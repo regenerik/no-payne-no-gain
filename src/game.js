@@ -429,14 +429,12 @@ async function connectOnlineServer() {
     socket.on("room:started", (room) => {
       activeRoom = room;
       currentMatchId = room.matchState?.matchId || null;
-      spectatorViewing = false;
+      spectatorViewing = getLocalRoomPlayer()?.team === "spectators";
       roomTimeInput.value = room.settings?.timeLimit || 3;
       roomScoreInput.value = room.settings?.scoreLimit || 3;
       roomProModeToggle.checked = room.settings?.proMode === true;
       roomKeeperToggle.checked = room.settings?.keeperEnabled === true;
       startGame({ multiplayer: true });
-      if (room.matchState) applyAuthoritativeSnapshot(room.matchState, true);
-      if (getLocalRoomPlayer()?.team === "spectators") openRoomOverlay();
     });
     socket.on("room:ended", (room) => {
       activeRoom = room;
@@ -1525,6 +1523,7 @@ function applyNetworkKickRequest(kick = {}) {
 
 function resetLocalPlayerForKickoff() {
   if (!player || !multiplayerMode) return;
+  if (getLocalRoomPlayer()?.team === "spectators") return;
   player.position.copy(getLocalMultiplayerStartPosition());
   playerAngle = getInitialPlayerAngle();
   player.rotation.y = playerAngle;
@@ -2032,7 +2031,12 @@ function releaseChargedShot() {
   const chargeSeconds = THREE.MathUtils.clamp(heldSeconds, 0, 0.8);
   const chargeRatio = heldSeconds < 0.1 ? 0 : chargeSeconds / 0.8;
   const power = 27.75 * (1 + chargeRatio * 0.8);
-  const liftPower = 2.2 + chargeRatio * 5.0;
+  const overchargeRamp = THREE.MathUtils.clamp((chargeRatio - 0.8) / 0.1, 0, 1);
+  const maximumOvercharge = THREE.MathUtils.clamp((chargeRatio - 0.9) / 0.1, 0, 1);
+  const liftPower = 2.2
+    + chargeRatio * 5.0
+    + overchargeRamp * 17.3
+    + maximumOvercharge * 4.0;
   const percent = Math.round(chargeRatio * 80);
   const label = chargeRatio === 0
     ? "Payne remata fuerte hacia su eje"
@@ -2078,11 +2082,12 @@ function updateGameplayControlHints() {
       <span>P: pro mode</span>
       <span>M: ambiente on/off</span>
       <span>Q: pase alto</span>
-      <span>E: pase potente</span>
+      <span>E: pase</span>
       <span>Espacio: remate</span>
     `;
   if (touchSoftBtn) touchSoftBtn.textContent = spectator ? "Papelitos" : "Pase alto";
   if (touchShotBtn) touchShotBtn.textContent = spectator ? "Saltar" : "Remate";
+  if (touchPassBtn) touchPassBtn.textContent = "Pase";
   if (touchPassBtn) touchPassBtn.style.display = spectator ? "none" : "";
   if (touchCameraBtn) touchCameraBtn.style.display = spectator ? "none" : "";
   if (touchProBtn) touchProBtn.style.display = spectator ? "none" : "";
@@ -2567,7 +2572,6 @@ function getTouchMoveDirection() {
 }
 
 function updateSpectatorPlayer(dt) {
-  const touchDir = getTouchMoveDirection();
   const turn = Number(keys.has("KeyA") || keys.has("ArrowLeft"))
     - Number(keys.has("KeyD") || keys.has("ArrowRight"));
   const throttle = Number(keys.has("KeyW") || keys.has("ArrowUp"))
@@ -2575,21 +2579,35 @@ function updateSpectatorPlayer(dt) {
   let moving = false;
   const speed = 8.2 * (touchSprintActive || keys.has("ShiftLeft") ? 1.35 : 1);
 
-  if (touchDir) {
-    playerAngle = Math.atan2(touchDir.x, touchDir.z);
-    playerMoveDir.copy(touchDir);
-    player.position.addScaledVector(touchDir, speed * THREE.MathUtils.clamp(touchMoveVector.length(), 0.28, 1) * dt);
-    moving = true;
+  if (touchMoveVector.lengthSq() >= 0.006) {
+    const analog = THREE.MathUtils.clamp(touchMoveVector.length(), 0.28, 1);
+    const touchTurn = -touchMoveVector.x;
+    const touchThrottle = -touchMoveVector.y;
+    if (Math.abs(touchTurn) > 0.08) {
+      const steeringBoost = Math.abs(touchThrottle) > 0.08 ? 1.18 : 0.86;
+      playerAngle += touchTurn * 3.35 * steeringBoost * dt;
+    }
+    if (Math.abs(touchThrottle) > 0.08) {
+      const forward = new THREE.Vector3(Math.sin(playerAngle), 0, Math.cos(playerAngle));
+      player.position.addScaledVector(forward, touchThrottle * speed * analog * dt);
+      playerMoveDir.copy(forward).multiplyScalar(Math.sign(touchThrottle)).normalize();
+    } else {
+      playerMoveDir.set(Math.sin(playerAngle), 0, Math.cos(playerAngle));
+    }
+    moving = Math.abs(touchThrottle) > 0.08 || Math.abs(touchTurn) > 0.08;
   } else {
-    if (turn !== 0) playerAngle += turn * 3.1 * dt;
+    if (turn !== 0) {
+      const steeringBoost = throttle !== 0 ? 1.18 : 0.86;
+      playerAngle += turn * 3.35 * steeringBoost * dt;
+    }
     if (throttle !== 0) {
       const forward = new THREE.Vector3(Math.sin(playerAngle), 0, Math.cos(playerAngle));
       player.position.addScaledVector(forward, throttle * speed * dt);
       playerMoveDir.copy(forward).multiplyScalar(Math.sign(throttle)).normalize();
-      moving = true;
     } else {
       playerMoveDir.set(Math.sin(playerAngle), 0, Math.cos(playerAngle));
     }
+    moving = throttle !== 0 || turn !== 0;
   }
 
   constrainSpectatorToStands(player);
@@ -3429,7 +3447,7 @@ function setupTouchControls() {
   });
   touchPassBtn?.addEventListener("pointerdown", (event) => {
     event.preventDefault();
-    kickBall(16.66, "Payne mete pase potente", 0, 0.8, "pass");
+    kickBall(16.66, "Payne mete un pase", 0, 0.8, "pass");
   });
   touchShotBtn?.addEventListener("pointerdown", (event) => {
     event.preventDefault();
@@ -3585,7 +3603,7 @@ window.addEventListener("keydown", (event) => {
     kickBall(16.66, "Payne mete pase alto", 0, 8.4, "pass");
   }
   if (event.code === "KeyE" && !event.ctrlKey) {
-    kickBall(16.66, "Payne mete pase potente", 0, 0.8, "pass");
+    kickBall(16.66, "Payne mete un pase", 0, 0.8, "pass");
   }
   if (event.code === "KeyC") {
     toggleCameraMode();

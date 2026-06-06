@@ -8,7 +8,7 @@ Juego de futbol 3D para navegador con entrenamiento y multijugador online.
 - `A/D` o flechas izquierda/derecha: girar; en camara lateral mueven sobre la pantalla.
 - `Shift izquierdo`: sprint.
 - `Q`: pase alto.
-- `E`: pase potente.
+- `E`: pase.
 - `Espacio`: remate cargable.
 - `C`: cambiar camara.
 - `P`: activar o desactivar Pro mode.
