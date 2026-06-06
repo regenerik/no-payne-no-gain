@@ -771,6 +771,141 @@ function createKickArrow() {
 }
 
 function addField() {
+  const cityGround = new THREE.Mesh(
+    new THREE.PlaneGeometry(180, 210),
+    new THREE.MeshBasicMaterial({ color: 0x203526 })
+  );
+  cityGround.rotation.x = -Math.PI / 2;
+  cityGround.position.y = -0.09;
+  scene.add(cityGround);
+
+  const asphaltMat = new THREE.MeshBasicMaterial({ color: 0x252b2e });
+  const roadMat = new THREE.MeshBasicMaterial({ color: 0x171c1f });
+  const parkingLineMat = new THREE.MeshBasicMaterial({ color: 0xc8c6a6 });
+  const roadLineMat = new THREE.MeshBasicMaterial({ color: 0xe3c84c });
+  const sidewalkMat = new THREE.MeshBasicMaterial({ color: 0x697176 });
+  const trunkMat = new THREE.MeshBasicMaterial({ color: 0x4b3324 });
+  const leavesMat = new THREE.MeshBasicMaterial({ color: 0x287044 });
+
+  const addFlatArea = (width, depth, x, z, material, y = -0.055) => {
+    const area = new THREE.Mesh(new THREE.PlaneGeometry(width, depth), material);
+    area.rotation.x = -Math.PI / 2;
+    area.position.set(x, y, z);
+    scene.add(area);
+    return area;
+  };
+
+  addFlatArea(24, 112, -49, 0, asphaltMat);
+  addFlatArea(24, 112, 49, 0, asphaltMat);
+  addFlatArea(76, 22, 0, -67, asphaltMat);
+  addFlatArea(76, 22, 0, 67, asphaltMat);
+  addFlatArea(12, 194, -68, 0, roadMat, -0.045);
+  addFlatArea(12, 194, 68, 0, roadMat, -0.045);
+  addFlatArea(148, 12, 0, -86, roadMat, -0.045);
+  addFlatArea(148, 12, 0, 86, roadMat, -0.045);
+
+  for (const x of [-62, -38, 38, 62]) {
+    const curb = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.18, 116), sidewalkMat);
+    curb.position.set(x, 0, 0);
+    scene.add(curb);
+  }
+  for (const z of [-79, -55, 55, 79]) {
+    const curb = new THREE.Mesh(new THREE.BoxGeometry(80, 0.18, 0.55), sidewalkMat);
+    curb.position.set(0, 0, z);
+    scene.add(curb);
+  }
+
+  const addParkingMark = (x, z, rotation = 0) => {
+    const line = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.018, 4.6), parkingLineMat);
+    line.position.set(x, -0.02, z);
+    line.rotation.y = rotation;
+    scene.add(line);
+  };
+  for (const side of [-1, 1]) {
+    for (let z = -49; z <= 49; z += 5.5) {
+      addParkingMark(side * 44, z);
+      addParkingMark(side * 54, z);
+    }
+    for (let x = -32; x <= 32; x += 5.5) {
+      addParkingMark(x, side * 63, Math.PI / 2);
+      addParkingMark(x, side * 71, Math.PI / 2);
+    }
+  }
+
+  const carColors = [0xb9c2c7, 0x285b91, 0x9e2937, 0xe2d168, 0x3b4145, 0xe6e8e9];
+  const addParkedCar = (x, z, rotation, colorIndex) => {
+    const car = new THREE.Group();
+    const body = new THREE.Mesh(
+      new THREE.BoxGeometry(1.75, 0.48, 3.45),
+      new THREE.MeshStandardMaterial({ color: carColors[colorIndex % carColors.length], roughness: 0.68 })
+    );
+    body.position.y = 0.32;
+    car.add(body);
+    const roof = new THREE.Mesh(
+      new THREE.BoxGeometry(1.42, 0.42, 1.72),
+      new THREE.MeshBasicMaterial({ color: 0x17252c })
+    );
+    roof.position.set(0, 0.68, -0.15);
+    car.add(roof);
+    car.position.set(x, 0, z);
+    car.rotation.y = rotation;
+    scene.add(car);
+  };
+  for (let i = 0; i < 13; i += 1) {
+    const z = -46 + i * 7.5;
+    addParkedCar(-49, z, 0, i);
+    if (i % 2 === 0) addParkedCar(49, z + 2.4, Math.PI, i + 2);
+  }
+  for (let i = 0; i < 9; i += 1) {
+    const x = -29 + i * 7.3;
+    if (i % 2 === 0) addParkedCar(x, -67, Math.PI / 2, i + 1);
+    addParkedCar(x, 67, -Math.PI / 2, i + 3);
+  }
+
+  for (const x of [-68, 68]) {
+    const centerLine = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.02, 190), roadLineMat);
+    centerLine.position.set(x, -0.015, 0);
+    scene.add(centerLine);
+  }
+  for (const z of [-86, 86]) {
+    const centerLine = new THREE.Mesh(new THREE.BoxGeometry(145, 0.02, 0.14), roadLineMat);
+    centerLine.position.set(0, -0.015, z);
+    scene.add(centerLine);
+  }
+
+  const addTree = (x, z, scale = 1) => {
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.16 * scale, 0.22 * scale, 1.7 * scale, 8), trunkMat);
+    trunk.position.set(x, 0.78 * scale, z);
+    scene.add(trunk);
+    const crown = new THREE.Mesh(new THREE.SphereGeometry(0.9 * scale, 10, 8), leavesMat);
+    crown.position.set(x, 2.05 * scale, z);
+    scene.add(crown);
+  };
+  for (let z = -72; z <= 72; z += 12) {
+    addTree(-78, z, 0.92 + (Math.abs(z) % 3) * 0.08);
+    addTree(78, z + 4, 0.95);
+  }
+  for (let x = -56; x <= 56; x += 14) {
+    addTree(x, -96, 0.9);
+    addTree(x + 5, 96, 1);
+  }
+
+  const buildingColors = [0x33404a, 0x27333c, 0x3f494f];
+  const addBuilding = (x, z, width, depth, height, colorIndex) => {
+    const building = new THREE.Mesh(
+      new THREE.BoxGeometry(width, height, depth),
+      new THREE.MeshBasicMaterial({ color: buildingColors[colorIndex % buildingColors.length] })
+    );
+    building.position.set(x, height / 2 - 0.05, z);
+    scene.add(building);
+  };
+  addBuilding(-86, -58, 12, 19, 8, 0);
+  addBuilding(-87, 37, 11, 23, 11, 1);
+  addBuilding(87, -49, 13, 25, 9, 2);
+  addBuilding(86, 45, 14, 20, 7, 0);
+  addBuilding(-38, -103, 24, 10, 8, 1);
+  addBuilding(34, 103, 30, 10, 10, 2);
+
   const apron = new THREE.Mesh(
     new THREE.PlaneGeometry(field.width + 24, field.length + 24),
     new THREE.MeshBasicMaterial({ color: 0x14682d })
@@ -1252,7 +1387,11 @@ function getLocalRoomPlayer() {
 
 function getInitialPlayerAngle() {
   if (!multiplayerMode) return 0;
-  return getLocalRoomPlayer().team === "blue" ? Math.PI : 0;
+  const team = getLocalRoomPlayer().team;
+  if (team === "spectators") {
+    return -Math.sign(player?.position.x || -1) * Math.PI / 4;
+  }
+  return team === "blue" ? Math.PI : 0;
 }
 
 function applyPlayerTeam(unit, team) {
@@ -2037,9 +2176,9 @@ function releaseChargedShot() {
   spaceChargeStart = null;
   const chargeSeconds = THREE.MathUtils.clamp(heldSeconds, 0, 0.8);
   const chargeRatio = heldSeconds < 0.1 ? 0 : chargeSeconds / 0.8;
-  const power = 27.75 * (1 + chargeRatio * 0.8);
-  const maximumOvercharge = THREE.MathUtils.clamp((chargeRatio - 0.9) / 0.1, 0, 1);
-  const liftPower = 2.2 + chargeRatio * 5.0 + maximumOvercharge * 4.8;
+  const effectiveCharge = chargeRatio * 0.85;
+  const power = 27.75 * (1 + effectiveCharge * 0.8);
+  const liftPower = 2.2 + effectiveCharge * 5.0;
   const percent = Math.round(chargeRatio * 80);
   const label = chargeRatio === 0
     ? "Payne remata fuerte hacia su eje"
