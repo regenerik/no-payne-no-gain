@@ -4,6 +4,9 @@ const roomScreen = document.querySelector("#roomScreen");
 const gameScreen = document.querySelector("#gameScreen");
 const endScreen = document.querySelector("#endScreen");
 const playBtn = document.querySelector("#playBtn");
+const howToPlayBtn = document.querySelector("#howToPlayBtn");
+const howToPlayDialog = document.querySelector("#howToPlayDialog");
+const closeHowToPlayBtn = document.querySelector("#closeHowToPlayBtn");
 const musicToggleBtn = document.querySelector("#musicToggleBtn");
 const multiplayerBtn = document.querySelector("#multiplayerBtn");
 const proModeToggle = document.querySelector("#proModeToggle");
@@ -44,6 +47,7 @@ const closeRoomOverlayBtn = document.querySelector("#closeRoomOverlayBtn");
 const leaveRoomBtn = document.querySelector("#leaveRoomBtn");
 const startMultiplayerGameBtn = document.querySelector("#startMultiplayerGameBtn");
 const roomTimeInput = document.querySelector("#roomTimeInput");
+const roomUnlimitedToggle = document.querySelector("#roomUnlimitedToggle");
 const roomScoreInput = document.querySelector("#roomScoreInput");
 const roomProModeToggle = document.querySelector("#roomProModeToggle");
 const roomKeeperToggle = document.querySelector("#roomKeeperToggle");
@@ -145,6 +149,7 @@ let chargeMeterRatio = 0;
 let ballTrails = [];
 let stadiumScoreTexture;
 let stadiumScoreCtx;
+let stadiumTimerText = "";
 let goalCooldown = 0;
 let ended = false;
 let phraseTimer = 0;
@@ -207,6 +212,10 @@ let menuMusic;
 let stadiumLoop;
 let goalSound;
 let kickSound;
+let menuMusicVolume = Number(localStorage.getItem("npgMenuVolume"));
+let stadiumSoundVolume = Number(localStorage.getItem("npgStadiumVolume"));
+if (!Number.isFinite(menuMusicVolume)) menuMusicVolume = 0.5;
+if (!Number.isFinite(stadiumSoundVolume)) stadiumSoundVolume = 0.32;
 
 function showScreen(active) {
   roomOverlayOpen = false;
@@ -271,9 +280,9 @@ function createAudio(src, { loop = false, volume = 1 } = {}) {
 
 function setupAudio() {
   if (menuMusic) return;
-  menuMusic = createAudio("./sonidos/menu.mp3", { loop: true, volume: 0.5 });
-  stadiumLoop = createAudio("./sonidos/ambiente_loop.mp3", { loop: true, volume: 0.32 });
-  goalSound = createAudio("./sonidos/gol.mp3", { loop: false, volume: 0.86 });
+  menuMusic = createAudio("./sonidos/menu.mp3", { loop: true, volume: menuMusicVolume });
+  stadiumLoop = createAudio("./sonidos/ambiente_loop.mp3", { loop: true, volume: stadiumSoundVolume });
+  goalSound = createAudio("./sonidos/gol.mp3", { loop: false, volume: Math.min(1, stadiumSoundVolume * 2.7) });
   kickSound = createAudio("./sonidos/kick.mp3", { loop: false, volume: 0.72 });
 }
 
@@ -291,7 +300,26 @@ function stopAudio(audio) {
 
 function updateMusicButton() {
   if (!musicToggleBtn) return;
-  musicToggleBtn.textContent = menuMusicMuted ? "Musica: OFF" : "Musica: ON";
+  const percentage = Math.round(menuMusicVolume * 100);
+  musicToggleBtn.textContent = menuMusicMuted ? "Musica: OFF" : `Musica: ${percentage}%`;
+}
+
+function adjustContextVolume(direction) {
+  setupAudio();
+  const step = 0.05 * Math.sign(direction);
+  if (gameScreen.classList.contains("is-active")) {
+    stadiumSoundVolume = THREE.MathUtils.clamp(stadiumSoundVolume + step, 0, 1);
+    stadiumLoop.volume = stadiumSoundVolume;
+    goalSound.volume = Math.min(1, stadiumSoundVolume * 2.7);
+    localStorage.setItem("npgStadiumVolume", String(stadiumSoundVolume));
+    momentEl.textContent = `Ambiente ${Math.round(stadiumSoundVolume * 100)}%`;
+    phraseTimer = 2;
+    return;
+  }
+  menuMusicVolume = THREE.MathUtils.clamp(menuMusicVolume + step, 0, 1);
+  menuMusic.volume = menuMusicVolume;
+  localStorage.setItem("npgMenuVolume", String(menuMusicVolume));
+  updateMusicButton();
 }
 
 function startMenuMusic() {
@@ -499,6 +527,8 @@ async function connectOnlineServer() {
       currentMatchId = room.matchState?.matchId || null;
       spectatorViewing = getLocalRoomPlayer()?.team === "spectators";
       roomTimeInput.value = room.settings?.timeLimit || 3;
+      roomUnlimitedToggle.checked = room.settings?.unlimited === true;
+      roomTimeInput.disabled = roomUnlimitedToggle.checked;
       roomScoreInput.value = room.settings?.scoreLimit || 3;
       roomProModeToggle.checked = room.settings?.proMode === true;
       roomKeeperToggle.checked = room.settings?.keeperEnabled === true;
@@ -635,13 +665,16 @@ function updateStadiumScoreboard() {
   ctx.lineWidth = 18;
   ctx.strokeRect(12, 12, 488, 232);
   ctx.fillStyle = "#ffffff";
-  ctx.font = multiplayerMode ? "900 68px Arial" : "900 104px Arial";
+  ctx.font = multiplayerMode ? "900 68px Arial" : "900 92px Arial";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.fillText(multiplayerMode ? `${redScore} - ${blueScore}` : `${score} - 0`, 256, 132);
+  ctx.fillText(multiplayerMode ? `${redScore} - ${blueScore}` : `${score} - 0`, 256, 124);
   ctx.font = "900 24px Arial";
   ctx.fillStyle = "#7cffb2";
   ctx.fillText(multiplayerMode ? "ROJO        AZUL" : "NO PAYNE NO GAIN", 256, 44);
+  ctx.font = "800 28px Arial";
+  ctx.fillStyle = "#dce8ed";
+  ctx.fillText(stadiumTimerText || (multiplayerMode ? "00:00" : "ENTRENAMIENTO"), 256, 204);
   stadiumScoreTexture.needsUpdate = true;
 }
 
@@ -1895,7 +1928,9 @@ function setupGame() {
   score = 0;
   redScore = 0;
   blueScore = 0;
-  remaining = multiplayerMode && !lobbyPreviewMode ? (Number(roomTimeInput?.value) || 3) * 60 : Infinity;
+  remaining = multiplayerMode && !lobbyPreviewMode && !activeRoom?.settings?.unlimited
+    ? (Number(roomTimeInput?.value) || 3) * 60
+    : Infinity;
   if (multiplayerMode && activeRoom?.matchEndsAt) {
     remaining = Math.max(0, (Number(activeRoom.matchEndsAt) - Date.now()) / 1000);
   }
@@ -1953,12 +1988,33 @@ function setupGame() {
 }
 
 function updateTimer() {
+  let nextTimerText;
   if (lobbyPreviewMode) {
     timerEl.textContent = "Room";
+    nextTimerText = "SALA";
+    if (stadiumTimerText !== nextTimerText) {
+      stadiumTimerText = nextTimerText;
+      updateStadiumScoreboard();
+    }
     return;
   }
   if (!multiplayerMode) {
     timerEl.textContent = "Entrenamiento";
+    nextTimerText = "ENTRENAMIENTO";
+    if (stadiumTimerText !== nextTimerText) {
+      stadiumTimerText = nextTimerText;
+      updateStadiumScoreboard();
+    }
+    return;
+  }
+  if (activeRoom?.settings?.unlimited) {
+    remaining = Infinity;
+    timerEl.textContent = "Ilimitado";
+    nextTimerText = "TIEMPO ILIMITADO";
+    if (stadiumTimerText !== nextTimerText) {
+      stadiumTimerText = nextTimerText;
+      updateStadiumScoreboard();
+    }
     return;
   }
   if (activeRoom?.matchEndsAt) {
@@ -1967,7 +2023,12 @@ function updateTimer() {
   const total = Math.max(0, Math.ceil(remaining));
   const m = String(Math.floor(total / 60)).padStart(2, "0");
   const s = String(total % 60).padStart(2, "0");
-  timerEl.textContent = `${m}:${s}`;
+  nextTimerText = `${m}:${s}`;
+  timerEl.textContent = nextTimerText;
+  if (stadiumTimerText !== nextTimerText) {
+    stadiumTimerText = nextTimerText;
+    updateStadiumScoreboard();
+  }
 }
 
 function clearPlayerTags() {
@@ -2986,7 +3047,12 @@ function animateGame() {
   gameFrame = requestAnimationFrame(animateGame);
   const dt = Math.min(clock.getDelta(), 0.04);
 
-  if (multiplayerMode && !lobbyPreviewMode && !activeRoom?.matchEndsAt) remaining -= dt;
+  if (
+    multiplayerMode
+    && !lobbyPreviewMode
+    && !activeRoom?.matchEndsAt
+    && !activeRoom?.settings?.unlimited
+  ) remaining -= dt;
   updateTimer();
   phraseTimer -= dt;
   if (phraseTimer <= 0) {
@@ -3369,6 +3435,7 @@ function renderRoom() {
   activeRoomName.textContent = activeRoom.name;
   if (activeRoom.settings) {
     roomTimeInput.value = activeRoom.settings.timeLimit || 3;
+    roomUnlimitedToggle.checked = activeRoom.settings.unlimited === true;
     roomScoreInput.value = activeRoom.settings.scoreLimit || 3;
     roomProModeToggle.checked = activeRoom.settings.proMode === true;
     roomKeeperToggle.checked = activeRoom.settings.keeperEnabled === true;
@@ -3400,7 +3467,8 @@ function renderRoom() {
   ].forEach((button) => {
     button.style.display = canManageRoom ? "" : "none";
   });
-  [roomTimeInput, roomScoreInput, roomProModeToggle, roomKeeperToggle].forEach((input) => {
+  roomTimeInput.disabled = !canManageRoom || roomUnlimitedToggle.checked;
+  [roomScoreInput, roomProModeToggle, roomKeeperToggle, roomUnlimitedToggle].forEach((input) => {
     input.disabled = !canManageRoom;
   });
   if (pickStadiumBtn) pickStadiumBtn.style.display = canManageRoom ? "" : "none";
@@ -3479,6 +3547,7 @@ function syncOnlineRoomSettings() {
   if (!onlineMode || !socket?.connected || !activeRoom || !isCurrentRoomHost()) return;
   socket.emit("room:settings", {
     timeLimit: roomTimeInput.value,
+    unlimited: roomUnlimitedToggle.checked,
     scoreLimit: roomScoreInput.value,
     proMode: roomProModeToggle.checked,
     keeperEnabled: roomKeeperToggle.checked,
@@ -3646,6 +3715,15 @@ function setupTouchControls() {
 }
 
 playBtn.addEventListener("click", startGame);
+howToPlayBtn?.addEventListener("click", () => {
+  howToPlayDialog.hidden = false;
+});
+closeHowToPlayBtn?.addEventListener("click", () => {
+  howToPlayDialog.hidden = true;
+});
+howToPlayDialog?.addEventListener("click", (event) => {
+  if (event.target === howToPlayDialog) howToPlayDialog.hidden = true;
+});
 musicToggleBtn.addEventListener("click", toggleMute);
 connectServerBtn.addEventListener("click", connectOnlineServer);
 serverSettingsBtn?.addEventListener("click", () => {
@@ -3704,6 +3782,10 @@ copyLinkBtn.addEventListener("click", copyRoomLink);
 closeRoomOverlayBtn.addEventListener("click", closeRoomOverlay);
 leaveRoomBtn.addEventListener("click", leaveRoom);
 roomTimeInput.addEventListener("change", syncOnlineRoomSettings);
+roomUnlimitedToggle.addEventListener("change", () => {
+  roomTimeInput.disabled = roomUnlimitedToggle.checked;
+  syncOnlineRoomSettings();
+});
 roomScoreInput.addEventListener("change", syncOnlineRoomSettings);
 roomProModeToggle.addEventListener("change", syncOnlineRoomSettings);
 roomKeeperToggle.addEventListener("change", syncOnlineRoomSettings);
@@ -3721,6 +3803,7 @@ startMultiplayerGameBtn.addEventListener("click", () => {
   if (onlineMode && socket?.connected) {
     socket.emit("room:start", {
       timeLimit: roomTimeInput.value,
+      unlimited: roomUnlimitedToggle.checked,
       scoreLimit: roomScoreInput.value,
       proMode: roomProModeToggle.checked,
       keeperEnabled: roomKeeperToggle.checked,
@@ -3735,6 +3818,21 @@ closeBtn.addEventListener("click", () => {
 });
 
 window.addEventListener("keydown", (event) => {
+  if (
+    !event.ctrlKey
+    && !event.metaKey
+    && !event.altKey
+    && ["Equal", "NumpadAdd", "Minus", "NumpadSubtract"].includes(event.code)
+  ) {
+    event.preventDefault();
+    adjustContextVolume(event.code === "Equal" || event.code === "NumpadAdd" ? 1 : -1);
+    return;
+  }
+  if (event.code === "Escape" && !howToPlayDialog?.hidden) {
+    event.preventDefault();
+    howToPlayDialog.hidden = true;
+    return;
+  }
   if (shouldBlockBrowserShortcut(event)) {
     event.preventDefault();
   }

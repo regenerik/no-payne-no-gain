@@ -29,6 +29,7 @@
           </label>
           <div class="menu-actions">
             <button id="playBtn" class="primary-button" type="button">Entrenamiento</button>
+            <button id="howToPlayBtn" class="secondary-button" type="button">Como jugar</button>
           </div>
         </div>
         <section class="menu-rooms" aria-label="Partidas multijugador">
@@ -120,7 +121,13 @@
           </div>
 
           <div class="room-settings">
-            <label>Time limit <input id="roomTimeInput" type="number" min="1" max="15" value="3" /></label>
+            <div class="room-time-setting">
+              <label>Time limit <input id="roomTimeInput" type="number" min="1" max="15" value="3" /></label>
+              <label class="room-unlimited-setting">
+                <input id="roomUnlimitedToggle" type="checkbox" />
+                <span>Ilimitado</span>
+              </label>
+            </div>
             <label>Score limit <input id="roomScoreInput" type="number" min="1" max="20" value="3" /></label>
             <label class="room-pro-setting">Pro mode <input id="roomProModeToggle" type="checkbox" /></label>
             <label class="room-pro-setting">Arqueros <input id="roomKeeperToggle" type="checkbox" /></label>
@@ -212,6 +219,65 @@
           <button class="primary-button small-button" type="submit">Continuar</button>
         </div>
       </form>
+    </div>
+
+    <div id="howToPlayDialog" class="how-to-dialog" hidden>
+      <section class="how-to-panel" role="dialog" aria-modal="true" aria-labelledby="howToPlayTitle">
+        <header class="how-to-header">
+          <div>
+            <span class="menu-rooms-kicker">Manual de cancha</span>
+            <h2 id="howToPlayTitle">Como jugar</h2>
+          </div>
+          <button id="closeHowToPlayBtn" class="icon-button" type="button" aria-label="Cerrar como jugar">X</button>
+        </header>
+
+        <div class="how-to-grid">
+          <article class="how-to-card how-to-card-wide">
+            <img src="./tutorial/camara-lateral.png" alt="Partido visto desde la camara lateral" />
+            <div>
+              <span class="how-to-number">01</span>
+              <h3>Entrá a la cancha</h3>
+              <p>Elegí Entrenamiento para practicar o entrá a una sala online. En multijugador: elegí una sala o creá la tuya, escribí tu nombre, acomodá los jugadores y presioná Start game.</p>
+            </div>
+          </article>
+
+          <article class="how-to-card">
+            <img src="./tutorial/remate-cargado.png" alt="Indicador de potencia de un remate" />
+            <div>
+              <span class="how-to-number">02</span>
+              <h3>Pelota y remates</h3>
+              <p><kbd>Q</kbd> hace un pase alto, <kbd>E</kbd> un pase y <kbd>Espacio</kbd> remata. Mantené Espacio para cargar potencia: aumenta la velocidad y la altura, pero si te excedés la pelota puede pasar sobre el travesaño.</p>
+            </div>
+          </article>
+
+          <article class="how-to-card">
+            <img src="./tutorial/estadio.png" alt="Cancha y tribunas del estadio" />
+            <div>
+              <span class="how-to-number">03</span>
+              <h3>Movimiento y cámaras</h3>
+              <p>Movete con flechas o <kbd>WASD</kbd>. Mantené <kbd>Shift</kbd> para correr y tocá <kbd>C</kbd> para alternar entre tercera persona y cámara lateral. <kbd>P</kbd> cambia Pro mode durante el entrenamiento.</p>
+            </div>
+          </article>
+
+          <article class="how-to-card how-to-card-text">
+            <span class="how-to-number">04</span>
+            <h3>Multijugador sin sacrificios humanos</h3>
+            <p>El creador puede activar o desactivar arqueros, elegir Pro mode, límite de goles, tiempo o partido ilimitado. Si esperás como espectador podés mirar desde la tribuna, caminar, saltar con <kbd>Espacio</kbd> y tirar papelitos con <kbd>Q</kbd>. A nadie le gusta ir al arco, por eso hay opción.</p>
+          </article>
+
+          <article class="how-to-card how-to-card-text">
+            <span class="how-to-number">05</span>
+            <h3>Atajos útiles</h3>
+            <p><kbd>M</kbd> activa o apaga música o ambiente. <kbd>+</kbd> y <kbd>-</kbd> ajustan su volumen. <kbd>Esc</kbd> vuelve al menú en entrenamiento y abre o cierra la sala durante un partido online.</p>
+          </article>
+
+          <article class="how-to-card how-to-card-text">
+            <span class="how-to-number">06</span>
+            <h3>Desde el celular</h3>
+            <p>Usá el joystick y los botones táctiles. Para jugar más cómodo, girá el teléfono y usalo en posición horizontal. Los controles quedan cerca de ambos pulgares.</p>
+          </article>
+        </div>
+      </section>
     </div>
 
     <div class="credits">
