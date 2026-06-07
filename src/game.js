@@ -14,8 +14,13 @@ const roomGameBtn = document.querySelector("#roomGameBtn");
 const roomsBackBtn = document.querySelector("#roomsBackBtn");
 const createRoomBtn = document.querySelector("#createRoomBtn");
 const serverUrlInput = document.querySelector("#serverUrlInput");
-const useOtherServerBtn = document.querySelector("#useOtherServerBtn");
+const serverSettingsBtn = document.querySelector("#serverSettingsBtn");
+const serverSettingsPanel = document.querySelector("#serverSettingsPanel");
 const playerNameInput = document.querySelector("#playerNameInput");
+const playerNameDialog = document.querySelector("#playerNameDialog");
+const playerNameForm = document.querySelector("#playerNameForm");
+const playerNameDialogTitle = document.querySelector("#playerNameDialogTitle");
+const cancelPlayerNameBtn = document.querySelector("#cancelPlayerNameBtn");
 const connectServerBtn = document.querySelector("#connectServerBtn");
 const serverStatus = document.querySelector("#serverStatus");
 const roomNameInput = document.querySelector("#roomNameInput");
@@ -176,6 +181,7 @@ let kickoffTakerId = null;
 let touchSprintActive = false;
 let lobbyPreviewMode = false;
 let multiplayerRooms = [];
+let roomListState = "loading";
 let spectatorViewing = false;
 let spectatorJumpVelocity = 0;
 let spectatorGrounded = true;
@@ -183,7 +189,8 @@ let spectatorJumpQueued = false;
 let spectatorConfetti = [];
 let lastSpectatorConfettiAt = 0;
 let matchEndRoomTimer = 0;
-const fullShotChargeSeconds = 0.64;
+let pendingIdentityAction = null;
+const fullShotChargeSeconds = 0.416;
 
 let celebrationRenderer;
 let celebrationScene;
@@ -345,13 +352,62 @@ function updateServerStatus(text) {
 
 function updateConnectionUi() {
   const connected = Boolean(onlineMode && socket?.connected);
-  document.querySelector(".create-row")?.classList.toggle("is-hidden", !connected);
-  connectServerBtn?.classList.toggle("connect-pulse", !connected);
-  if (connectServerBtn) connectServerBtn.textContent = connected ? "Conectado" : "Conectar";
+  if (createRoomBtn) createRoomBtn.disabled = !connected;
+  createRoomBtn?.classList.toggle("is-loading", !connected);
+  if (connectServerBtn) connectServerBtn.textContent = connected ? "Reconectar" : "Conectar";
 }
 
 function getEnteredPlayerName() {
   return (playerNameInput?.value || "").trim().slice(0, 18);
+}
+
+function requestPlayerIdentity(title, action) {
+  pendingIdentityAction = action;
+  playerNameDialogTitle.textContent = title;
+  playerNameInput.value = onlinePlayerName;
+  playerNameDialog.hidden = false;
+  requestAnimationFrame(() => {
+    playerNameInput.focus();
+    playerNameInput.select();
+  });
+}
+
+function closePlayerIdentity() {
+  pendingIdentityAction = null;
+  playerNameDialog.hidden = true;
+}
+
+function saveEnteredPlayerName() {
+  const enteredName = getEnteredPlayerName();
+  if (!enteredName) {
+    playerNameInput.focus();
+    return false;
+  }
+  onlinePlayerName = enteredName;
+  localStorage.setItem("npgPlayerName", onlinePlayerName);
+  return true;
+}
+
+function joinOnlineRoom(roomId) {
+  if (!onlineMode || !socket?.connected) return;
+  socket.emit("room:join", {
+    roomId,
+    playerName: onlinePlayerName,
+  }, (response) => {
+    if (response?.ok) {
+      activeRoom = response.room;
+      selectedPlayerId = socket.id;
+      if (response.room.started) {
+        spectatorViewing = false;
+        startGame({ multiplayer: true });
+        openRoomOverlay();
+      } else {
+        showRoomLobbyPreview();
+      }
+    } else {
+      updateServerStatus(response?.error || "No pude entrar");
+    }
+  });
 }
 
 function loadSocketClient(url) {
@@ -374,18 +430,12 @@ async function connectOnlineServer() {
     updateServerStatus("Falta URL");
     return;
   }
-  const enteredName = getEnteredPlayerName();
-  if (!enteredName) {
-    updateServerStatus("Poné tu nombre para conectar");
-    playerNameInput?.focus();
-    return;
-  }
-
-  onlinePlayerName = enteredName;
   localStorage.setItem("npgServerUrl", url);
-  localStorage.setItem("npgPlayerName", onlinePlayerName);
   socketServerUrl = url;
+  roomListState = "loading";
   updateServerStatus("Conectando...");
+  updateConnectionUi();
+  renderRoomList();
 
   try {
     await loadSocketClient(url);
@@ -398,20 +448,30 @@ async function connectOnlineServer() {
       socket.emit("rooms:list", (response) => {
         if (response?.ok) {
           multiplayerRooms = response.rooms;
+          roomListState = "ready";
           renderRoomList();
         }
       });
     });
     socket.on("disconnect", () => {
       onlineMode = false;
-      updateServerStatus("Offline");
+      roomListState = "loading";
+      updateServerStatus("Reconectando...");
+      updateConnectionUi();
+      renderRoomList();
+    });
+    socket.on("connect_error", () => {
+      onlineMode = false;
+      roomListState = "error";
+      updateServerStatus("Sin conexión. Revisa el engranaje.");
       updateConnectionUi();
       renderRoomList();
     });
     socket.on("rooms:update", (rooms) => {
       if (!onlineMode) return;
       multiplayerRooms = rooms;
-      if (roomsScreen.classList.contains("is-active")) renderRoomList();
+      roomListState = "ready";
+      renderRoomList();
     });
     socket.on("room:state", (room) => {
       const previousLocalTeam = activeRoom?.players.find((roomPlayer) => roomPlayer.id === getLocalPlayerId())?.team;
@@ -3076,7 +3136,7 @@ function handleRoomClosed() {
   selectedPlayerId = null;
   updateSpectatorNotice();
   stopGameAudio();
-  updateServerStatus("Room cerrada por el creador");
+  updateServerStatus(socket?.connected ? "Online" : "Room cerrada por el creador");
   openRooms();
 }
 
@@ -3103,26 +3163,26 @@ function animateCelebration() {
 function renderRoomList() {
   if (!roomList) return;
   roomList.innerHTML = "";
-  if (!onlineMode || !socket?.connected) {
+  if (roomListState === "loading") {
     const empty = document.createElement("div");
     empty.className = "room-empty";
-    empty.textContent = "Desconectado. Pegá la URL del servidor y tocá Conectar.";
-    empty.textContent = "";
     const text = document.createElement("span");
-    text.textContent = "Para ver la lista de rooms, pone tu nombre y dale a Conectar.";
-    const button = document.createElement("button");
-    button.className = "primary-button small-button connect-pulse";
-    button.type = "button";
-    button.textContent = "Conectar";
-    button.addEventListener("click", connectOnlineServer);
-    empty.append(text, button);
+    text.textContent = "Recuperando salas creadas...";
+    empty.append(text);
+    roomList.appendChild(empty);
+    return;
+  }
+  if (roomListState === "error") {
+    const empty = document.createElement("div");
+    empty.className = "room-empty";
+    empty.textContent = "No pudimos recuperar las salas. Revisa el engranaje.";
     roomList.appendChild(empty);
     return;
   }
   if (multiplayerRooms.length === 0) {
     const empty = document.createElement("div");
     empty.className = "room-empty";
-    empty.textContent = "No hay rooms creadas todavia.";
+    empty.textContent = "No hay salas creadas todavía.";
     roomList.appendChild(empty);
     return;
   }
@@ -3137,34 +3197,9 @@ function renderRoomList() {
     `;
     row.addEventListener("click", () => {
       if (onlineMode && socket?.connected) {
-        const enteredName = getEnteredPlayerName();
-        if (!enteredName) {
-          updateServerStatus("Pone tu nombre para entrar");
-          playerNameInput?.focus();
-          return;
-        }
-        onlinePlayerName = enteredName;
-        localStorage.setItem("npgPlayerName", onlinePlayerName);
-        socket.emit("room:join", {
-          roomId: room.id,
-          playerName: onlinePlayerName,
-        }, (response) => {
-          if (response?.ok) {
-            activeRoom = response.room;
-            selectedPlayerId = socket.id;
-            if (response.room.started) {
-              spectatorViewing = false;
-              startGame({ multiplayer: true });
-              openRoomOverlay();
-            } else {
-              showRoomLobbyPreview();
-            }
-          } else {
-            updateServerStatus(response?.error || "No pude entrar");
-          }
-        });
+        requestPlayerIdentity(`Entrar a ${room.name}`, () => joinOnlineRoom(room.id));
       } else {
-        openRoom(room.id);
+        updateServerStatus("Servidor desconectado");
       }
     });
     roomList.appendChild(row);
@@ -3173,10 +3208,10 @@ function renderRoomList() {
 
 function openRooms() {
   setupAudio();
-  stopAudio(menuMusic);
   updateConnectionUi();
   renderRoomList();
-  showScreen(roomsScreen);
+  showScreen(menu);
+  startMenuMusic();
   updateSpectatorNotice();
 }
 
@@ -3235,14 +3270,14 @@ function toggleProModeInGame() {
 }
 
 function createRoom() {
-  const enteredName = getEnteredPlayerName();
-  if (!enteredName) {
-    updateServerStatus("Pone tu nombre para crear");
-    playerNameInput?.focus();
+  if (!onlineMode || !socket?.connected) {
+    updateServerStatus("Servidor desconectado");
     return;
   }
-  onlinePlayerName = enteredName;
-  localStorage.setItem("npgPlayerName", onlinePlayerName);
+  requestPlayerIdentity("Crear partida", createOnlineRoom);
+}
+
+function createOnlineRoom() {
   if (onlineMode && socket?.connected) {
     socket.emit("room:create", {
       name: roomNameInput.value,
@@ -3259,23 +3294,6 @@ function createRoom() {
     });
     return;
   }
-
-  updateServerStatus("Conectate al servidor para crear rooms");
-  renderRoomList();
-  return;
-
-  const maxPlayers = THREE.MathUtils.clamp(Number(roomMaxInput.value) || 12, 2, 16);
-  const room = {
-    id: `room-${Date.now()}`,
-    name: (roomNameInput.value || "Mi partida").trim().slice(0, 22),
-    ping: 22 + Math.floor(Math.random() * 34),
-    maxPlayers,
-    players: [
-      { id: "local-host", name: "davo", team: "spectators", score: 0 },
-    ],
-  };
-  multiplayerRooms = [room, ...multiplayerRooms];
-  openRoom(room.id);
 }
 
 function openRoom(roomId) {
@@ -3629,13 +3647,24 @@ function setupTouchControls() {
 
 playBtn.addEventListener("click", startGame);
 musicToggleBtn.addEventListener("click", toggleMute);
-multiplayerBtn.addEventListener("click", openRooms);
 connectServerBtn.addEventListener("click", connectOnlineServer);
-useOtherServerBtn?.addEventListener("click", () => {
-  serverUrlInput.readOnly = false;
-  serverUrlInput.focus();
-  serverUrlInput.select();
-  updateServerStatus("Pega otro servidor");
+serverSettingsBtn?.addEventListener("click", () => {
+  serverSettingsPanel.hidden = !serverSettingsPanel.hidden;
+  if (!serverSettingsPanel.hidden) {
+    serverUrlInput.focus();
+    serverUrlInput.select();
+  }
+});
+cancelPlayerNameBtn?.addEventListener("click", closePlayerIdentity);
+playerNameForm?.addEventListener("submit", (event) => {
+  event.preventDefault();
+  if (!saveEnteredPlayerName()) return;
+  const action = pendingIdentityAction;
+  closePlayerIdentity();
+  action?.();
+});
+playerNameDialog?.addEventListener("click", (event) => {
+  if (event.target === playerNameDialog) closePlayerIdentity();
 });
 againBtn.addEventListener("click", startGame);
 roomGameBtn.addEventListener("click", openRoomOverlay);
@@ -3651,7 +3680,7 @@ backMenuBtn.addEventListener("click", () => {
   }
   returnToMenu();
 });
-roomsBackBtn.addEventListener("click", returnToMenu);
+roomsBackBtn?.addEventListener("click", returnToMenu);
 createRoomBtn.addEventListener("click", createRoom);
 moveToRedBtn.addEventListener("click", () => moveSelectedPlayer("red"));
 moveToBlueBtn.addEventListener("click", () => moveSelectedPlayer("blue"));
@@ -3818,35 +3847,21 @@ setupAudio();
 setupTouchControls();
 updateMusicButton();
 serverUrlInput.value = new URLSearchParams(window.location.search).get("server") || socketServerUrl || defaultServerUrl;
-serverUrlInput.readOnly = true;
 playerNameInput.value = onlinePlayerName;
 updateConnectionUi();
+renderRoomList();
 
 const sharedRoomId = new URLSearchParams(window.location.search).get("room");
-const sharedServerUrl = new URLSearchParams(window.location.search).get("server");
-if (sharedServerUrl && sharedRoomId) {
-  connectOnlineServer().then(() => {
-    setTimeout(() => {
-      if (!socket?.connected) return;
-      socket.emit("room:join", {
-        roomId: sharedRoomId,
-        playerName: onlinePlayerName,
-      }, (response) => {
-        if (response?.ok) {
-          activeRoom = response.room;
-          selectedPlayerId = socket.id;
-          if (response.room.started) {
-            spectatorViewing = false;
-            startGame({ multiplayer: true });
-            openRoomOverlay();
-          } else {
-            showRoomLobbyPreview();
-          }
-        }
-      });
-    }, 500);
-  });
-} else if (sharedRoomId) {
-  renderRoomList();
-  openRoom(sharedRoomId);
+connectOnlineServer();
+if (sharedRoomId) {
+  let sharedRoomAttempts = 0;
+  const joinSharedRoomWhenReady = () => {
+    if (socket?.connected) {
+      requestPlayerIdentity("Entrar a la partida", () => joinOnlineRoom(sharedRoomId));
+      return;
+    }
+    sharedRoomAttempts += 1;
+    if (sharedRoomAttempts < 40) setTimeout(joinSharedRoomWhenReady, 250);
+  };
+  joinSharedRoomWhenReady();
 }

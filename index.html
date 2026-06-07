@@ -29,55 +29,48 @@
           </label>
           <div class="menu-actions">
             <button id="playBtn" class="primary-button" type="button">Entrenamiento</button>
-            <button id="multiplayerBtn" class="secondary-button" type="button">Multijugador</button>
           </div>
         </div>
+        <section class="menu-rooms" aria-label="Partidas multijugador">
+          <header class="menu-rooms-header">
+            <div>
+              <span class="menu-rooms-kicker">Multijugador</span>
+              <strong>Partidas online</strong>
+            </div>
+            <button id="serverSettingsBtn" class="icon-button" type="button" title="Configurar servidor" aria-label="Configurar servidor">&#9881;</button>
+          </header>
+          <div id="serverSettingsPanel" class="server-settings-panel" hidden>
+            <label>
+              Servidor
+              <input id="serverUrlInput" type="url" placeholder="https://tu-server.onrender.com" />
+            </label>
+            <button id="connectServerBtn" class="secondary-button small-button" type="button">Reconectar</button>
+            <span id="serverStatus" class="server-status">Conectando...</span>
+          </div>
+          <div class="menu-online-status">
+            <button id="createRoomBtn" class="primary-button small-button" type="button" disabled>Crear partida</button>
+          </div>
+          <div class="create-row menu-create-options">
+            <label>
+              Nombre de room
+              <input id="roomNameInput" type="text" value="Mi partida" maxlength="22" />
+            </label>
+            <label>
+              Jugadores
+              <input id="roomMaxInput" type="number" min="2" max="16" value="12" />
+            </label>
+          </div>
+          <div class="room-list-head">
+            <span>Ping</span>
+            <span>Room</span>
+            <span>Jugadores</span>
+          </div>
+          <div id="roomList" class="room-list menu-room-list"></div>
+        </section>
       </section>
 
       <section id="roomsScreen" class="screen screen-rooms" aria-label="Rooms multijugador">
-        <div class="multiplayer-shell rooms-shell">
-          <div class="multi-header">
-            <div>
-              <p class="eyebrow">Multijugador</p>
-              <h2>Rooms</h2>
-            </div>
-            <button id="roomsBackBtn" class="secondary-button small-button" type="button">Volver</button>
-          </div>
-
-          <div class="create-match">
-            <div class="server-row">
-              <label>
-                Servidor
-                <input id="serverUrlInput" type="url" placeholder="https://tu-server.onrender.com" readonly />
-              </label>
-              <button id="useOtherServerBtn" class="secondary-button small-button use-other-button" type="button">Usar otro</button>
-              <label>
-                Nombre
-                <input id="playerNameInput" class="player-name-input" type="text" maxlength="18" placeholder="PONE TU NOMBRE ACA PARA CONECTARTE Y VER LAS SALAS" />
-              </label>
-              <button id="connectServerBtn" class="primary-button small-button connect-pulse" type="button">Conectar</button>
-              <span id="serverStatus" class="server-status">Desconectado</span>
-            </div>
-            <div class="create-row is-hidden">
-              <label>
-                Nombre de room
-                <input id="roomNameInput" type="text" value="Mi partida" maxlength="22" />
-              </label>
-              <label>
-                Jugadores
-                <input id="roomMaxInput" type="number" min="2" max="16" value="12" />
-              </label>
-              <button id="createRoomBtn" class="primary-button" type="button">Crear partido</button>
-            </div>
-          </div>
-
-          <div class="room-list-head">
-            <span>Ping</span>
-            <span>Nombre de room</span>
-            <span>Jugadores</span>
-          </div>
-          <div id="roomList" class="room-list"></div>
-        </div>
+        <button id="roomsBackBtn" class="secondary-button small-button" type="button">Volver</button>
       </section>
 
       <section id="roomScreen" class="screen screen-room" aria-label="Lobby de room">
@@ -206,6 +199,20 @@
         </div>
       </section>
     </main>
+
+    <div id="playerNameDialog" class="identity-dialog" hidden>
+      <form id="playerNameForm" class="identity-panel">
+        <strong id="playerNameDialogTitle">Tu nombre</strong>
+        <label>
+          Nombre
+          <input id="playerNameInput" class="player-name-input" type="text" maxlength="18" placeholder="PONE TU NOMBRE ACA" autocomplete="nickname" />
+        </label>
+        <div class="identity-actions">
+          <button id="cancelPlayerNameBtn" class="secondary-button small-button" type="button">Cancelar</button>
+          <button class="primary-button small-button" type="submit">Continuar</button>
+        </div>
+      </form>
+    </div>
 
     <div class="credits">
       Fondo: Tim Payne (2025, photo 1), Wikimedia Commons.
