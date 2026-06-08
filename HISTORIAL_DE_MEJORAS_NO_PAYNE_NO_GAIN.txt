@@ -639,6 +639,34 @@ la versión multijugador actual.
   se registraron errores de ejecucion.
 
 
+33. RESPALDO ESTABLE V4
+
+- Se guardo una copia completa del frontend en el punto estable posterior al
+  museo subterraneo y al cierre definitivo del acceso secreto.
+- Se guardo tambien el servidor autoritativo correspondiente.
+- Los respaldos fueron identificados como Futbol World Cup V4 y
+  FutbolWorldCupServer V4.
+- Cada respaldo incluye un archivo VERSION_V4.txt con fecha, alcance y una
+  advertencia para evitar editar accidentalmente la copia estable.
+- Se conservaron copias tanto en el workspace tecnico como en el Desktop.
+
+
+34. FOTOGRAFIAS REALES EN EL MUSEO DEL FUTBOL
+
+- Los seis retratos genericos del museo fueron reemplazados por cinco
+  fotografias aportadas para la exhibicion.
+- Se incorporaron imagenes de Messi con la Copa del Mundo, Maradona, Pele,
+  Tim y un jugador argentino con la camiseta numero 10.
+- Cada fotografia conserva su proporcion original: ninguna se recorta,
+  estira ni deforma para entrar en el cuadro.
+- Los marcos adoptan el formato horizontal o vertical de cada obra y fueron
+  distribuidos entre ambas paredes sin superar sus limites.
+- Las imagenes fueron optimizadas para reducir considerablemente el peso de
+  descarga sin modificar su encuadre.
+- Se agrego filtrado de textura para mantener bordes limpios y buena
+  definicion al acercarse a los cuadros.
+
+
 Este proyecto comenzó como una pequeña broma futbolera protagonizada por
 Tim Payne y terminó convirtiéndose en un juego online completo, con una
 cantidad bastante gloriosa de detalles, reglas, cámaras, sonidos, tribunas,

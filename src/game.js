@@ -1136,35 +1136,6 @@ function addTrainingMuseum() {
     shield.scale.setScalar(scale);
     return shield;
   };
-  const createPortraitTexture = (shirtColor, accentColor) => {
-    const canvas = document.createElement("canvas");
-    canvas.width = 256;
-    canvas.height = 384;
-    const ctx = canvas.getContext("2d");
-    const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
-    gradient.addColorStop(0, "#1a2328");
-    gradient.addColorStop(1, "#29683d");
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = "#d9b77b";
-    ctx.fillRect(104, 74, 48, 60);
-    ctx.fillStyle = "#171717";
-    ctx.fillRect(98, 61, 60, 25);
-    ctx.fillStyle = shirtColor;
-    ctx.fillRect(73, 132, 110, 132);
-    ctx.fillStyle = accentColor;
-    ctx.fillRect(118, 132, 20, 132);
-    ctx.fillStyle = "#dedede";
-    ctx.fillRect(57, 145, 18, 115);
-    ctx.fillRect(181, 145, 18, 115);
-    ctx.fillStyle = "#151b20";
-    ctx.fillRect(89, 264, 31, 92);
-    ctx.fillRect(136, 264, 31, 92);
-    ctx.fillStyle = "rgba(255,255,255,0.18)";
-    ctx.fillRect(0, 330, canvas.width, 54);
-    return new THREE.CanvasTexture(canvas);
-  };
-
   // Stadium surfaces become physical only when free mode starts.
   addInvisibleCollider(field.width / 2 + 3.7, 0, -50, field.width / 2 + 15, 9, 50);
   addInvisibleCollider(-field.width / 2 - 15, 0, -50, -field.width / 2 - 3.7, 9, -3.6);
@@ -1292,33 +1263,47 @@ function addTrainingMuseum() {
   addBox(25.4, 0.28, 0.24, museumCenterX, trainingMuseumFloorY + 2.1, 11.72, redAccentMat, false);
   addBox(0.24, 0.28, 23.4, -74.72, trainingMuseumFloorY + 2.1, 0, redAccentMat, false);
 
-  const portraitColors = [
-    ["#2058b6", "#ffffff"],
-    ["#151515", "#ffffff"],
-    ["#c22b3e", "#ffffff"],
-    ["#e0c82d", "#23632e"],
-    ["#eeeeee", "#9f263a"],
-    ["#2444a7", "#b1294b"],
+  const textureLoader = new THREE.TextureLoader();
+  const museumPictures = [
+    { file: "./assets/museum/messi.jpg", ratio: 1024 / 683, x: -70.1, side: -1, maxWidth: 5.7 },
+    { file: "./assets/museum/argentina-10.jpg", ratio: 1122 / 1402, x: -63.6, side: -1, maxWidth: 3.25 },
+    { file: "./assets/museum/maradona.jpg", ratio: 960 / 1407, x: -58.8, side: -1, maxWidth: 2.85 },
+    { file: "./assets/museum/pele.jpg", ratio: 640 / 1000, x: -69.6, side: 1, maxWidth: 2.7 },
+    { file: "./assets/museum/tim.jpg", ratio: 1147 / 645, x: -59.7, side: 1, maxWidth: 6.2 },
   ];
-  const portraitXs = [-69.2, -64.7, -60.2, -55.7, -51.7, -73.3];
-  for (let i = 0; i < 6; i += 1) {
-    const side = i < 3 ? -1 : 1;
-    const x = portraitXs[i];
-    const z = side * 11.72;
-    addBox(3.15, 3.85, 0.2, x, trainingMuseumFloorY + 3.2, z, frameMat, false);
+  museumPictures.forEach((picture, index) => {
+    const maxHeight = 3.75;
+    const imageWidth = Math.min(picture.maxWidth, maxHeight * picture.ratio);
+    const imageHeight = imageWidth / picture.ratio;
+    const frameWidth = imageWidth + 0.34;
+    const frameHeight = imageHeight + 0.34;
+    const z = picture.side * 11.72;
+    const y = trainingMuseumFloorY + 3.15;
+    addBox(frameWidth, frameHeight, 0.2, picture.x, y, z, frameMat, false);
+    const texture = textureLoader.load(picture.file);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.wrapS = THREE.ClampToEdgeWrapping;
+    texture.wrapT = THREE.ClampToEdgeWrapping;
+    texture.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
     const portrait = new THREE.Mesh(
-      new THREE.PlaneGeometry(2.72, 3.42),
-      new THREE.MeshBasicMaterial({
-        map: createPortraitTexture(...portraitColors[i]),
-        side: THREE.DoubleSide,
-      })
+      new THREE.PlaneGeometry(imageWidth, imageHeight),
+      new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide })
     );
-    portrait.position.set(x, trainingMuseumFloorY + 3.2, z - side * 0.12);
-    portrait.rotation.y = side < 0 ? 0 : Math.PI;
-    portrait.userData.museumFrame = i;
+    portrait.position.set(picture.x, y, z - picture.side * 0.12);
+    portrait.rotation.y = picture.side < 0 ? 0 : Math.PI;
+    portrait.userData.museumFrame = index;
     museumGroup.add(portrait);
-    addBox(1.65, 0.28, 0.12, x, trainingMuseumFloorY + 1.05, z - side * 0.17, silverMat, false);
-  }
+    addBox(
+      Math.min(1.7, frameWidth * 0.55),
+      0.22,
+      0.12,
+      picture.x,
+      y - frameHeight / 2 - 0.22,
+      z - picture.side * 0.17,
+      silverMat,
+      false
+    );
+  });
 
   const backShield = createShield(new THREE.MeshBasicMaterial({ color: 0xf7f7f2 }), 1.28);
   backShield.rotation.y = Math.PI / 2;
@@ -1360,8 +1345,8 @@ function addTrainingMuseum() {
       museumGroup.add(stem);
     }
   };
-  addTrophyCase(-71.5, -7.8, true);
-  addTrophyCase(-53, 7.8, false);
+  addTrophyCase(-52.7, -7.2, true);
+  addTrophyCase(-72.3, 6.8, false);
 
   for (const x of [-71, -65, -59, -53]) {
     const light = new THREE.PointLight(0xffefd2, 0.52, 10);
