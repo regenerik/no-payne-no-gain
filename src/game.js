@@ -1802,6 +1802,14 @@ function applyAuthoritativeSnapshot(snapshot = {}, immediate = false) {
       state.unit.rotation.z = state.mode === "dive"
         ? (state.targetX >= state.unit.position.x ? -1.24 : 1.24)
         : 0;
+      if (state.unit.userData.limbs) {
+        state.unit.userData.limbs.legs.forEach((leg) => {
+          leg.rotation.x = state.mode === "clear" ? -leg.userData.side * 0.95 : 0;
+        });
+        state.unit.userData.limbs.arms.forEach((arm) => {
+          arm.rotation.x = state.mode === "clear" ? arm.userData.side * 0.42 : 0;
+        });
+      }
     });
   }
 }

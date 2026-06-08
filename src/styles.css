@@ -1726,12 +1726,20 @@ h2 {
     font-size: 8px;
   }
 
+  .touch-actions button:nth-child(1) {
+    order: 1;
+  }
+
   .touch-actions button:nth-child(2) {
     order: 3;
   }
 
   .touch-actions button:nth-child(3) {
     order: 2;
+  }
+
+  .touch-actions button:nth-child(4) {
+    order: 4;
   }
 
   .controls {
