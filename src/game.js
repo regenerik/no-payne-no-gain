@@ -222,8 +222,9 @@ let lastSpectatorConfettiAt = 0;
 let matchEndRoomTimer = 0;
 let pendingIdentityAction = null;
 let pendingIdentityNeedsRoom = false;
+let suppressNextRoomClosedNotice = false;
 const fullShotChargeSeconds = 0.416;
-const sprintDrainSeconds = 5;
+const sprintDrainSeconds = 3;
 const sprintRechargeSeconds = 5;
 const sprintEmptyDelaySeconds = 2;
 let sprintEnergy = 1;
@@ -623,6 +624,7 @@ async function connectOnlineServer() {
           spectatorViewing = false;
         }
         syncMultiplayerTeamsToField({ preserveLocal: previousLocalTeam === nextLocalTeam });
+        if (previousLocalTeam !== nextLocalTeam) updateGameplayControlHints();
         if (room.matchState && previousLocalTeam !== nextLocalTeam) {
           applyAuthoritativeSnapshot(room.matchState, true);
         }
@@ -3439,7 +3441,8 @@ function finishMatch() {
 }
 
 function handleRoomClosed(payload = {}) {
-  const localWasHost = activeRoom?.hostId === getLocalPlayerId();
+  const localWasHost = activeRoom?.hostId === getLocalPlayerId() || suppressNextRoomClosedNotice;
+  suppressNextRoomClosedNotice = false;
   if (matchEndRoomTimer) {
     clearTimeout(matchEndRoomTimer);
     matchEndRoomTimer = 0;
@@ -3575,6 +3578,7 @@ function closeRoomOverlay() {
     syncMultiplayerTeamsToField();
     if (activeRoom.matchState) applyAuthoritativeSnapshot(activeRoom.matchState, true);
   }
+  updateGameplayControlHints();
   roomOverlayOpen = false;
   roomScreen.classList.remove("is-active", "is-overlay");
 }
@@ -3585,6 +3589,7 @@ function leaveRoom() {
     matchEndRoomTimer = 0;
   }
   if (onlineMode && socket?.connected && activeRoom) {
+    suppressNextRoomClosedNotice = isCurrentRoomHost();
     socket.emit("room:leave");
   }
   keys.clear();

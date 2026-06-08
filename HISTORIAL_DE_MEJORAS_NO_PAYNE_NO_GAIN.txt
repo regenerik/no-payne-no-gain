@@ -502,7 +502,7 @@ la versión multijugador actual.
 - Se elimino el boton Rec del lobby porque no tenia una funcion prevista.
 - Se incorporo la opcion "Sprint limitado" en la configuracion de la Room.
 - Sprint limitado comienza activado por defecto.
-- Cada jugador dispone de cinco segundos acumulados de carrera rapida.
+- Cada jugador dispone de tres segundos acumulados de carrera rapida.
 - Al agotar la energia existe una espera obligatoria de dos segundos.
 - Luego de la espera, la barra tarda cinco segundos en recargarse por completo.
 - El sprint puede volver a usarse mientras la barra se esta recargando.
@@ -515,6 +515,31 @@ la versión multijugador actual.
 - El tutorial Como jugar ahora explica el funcionamiento del sprint limitado.
 - Se agregaron pruebas automaticas para consumo, bloqueo, recarga, modo
   ilimitado y rebotes moderados de los arqueros.
+
+
+27. CAMBIOS DE EQUIPO EN VIVO Y CIERRE DE SALA
+
+- Los controles tactiles ahora se actualizan inmediatamente cuando un jugador
+  pasa del campo a Spectators durante un partido activo.
+- En la grada, Pase alto cambia visualmente a Papelitos y Remate cambia a
+  Saltar, además de ocultarse los controles que no corresponden.
+- Al devolver al espectador a un equipo, los botones recuperan enseguida sus
+  nombres y funciones normales de cancha.
+- El refresco funciona sin reiniciar el partido y también al cerrar el Room
+  para continuar jugando o alentando.
+- Cuando el creador abandona voluntariamente su propia sala, ya no recibe el
+  aviso "El creador de la sala salio".
+- Los invitados conservan correctamente ese aviso cuando el anfitrion cierra
+  o abandona la sala.
+
+
+28. AJUSTE DE DURACION DEL SPRINT
+
+- La reserva total del Sprint limitado se redujo de cinco a tres segundos.
+- La pausa obligatoria al agotarse se mantiene en dos segundos.
+- La recarga completa se mantiene en cinco segundos.
+- La nueva duracion se sincroniza entre la barra local y la simulacion
+  autoritativa del servidor.
 
 
 Este proyecto comenzó como una pequeña broma futbolera protagonizada por
