@@ -402,6 +402,12 @@ kbd {
   font-size: 22px;
 }
 
+.room-closed-panel p {
+  margin: 0;
+  color: #d5e2e7;
+  line-height: 1.5;
+}
+
 .eyebrow {
   margin: 0 0 12px;
   color: var(--neon);

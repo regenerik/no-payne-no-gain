@@ -122,15 +122,15 @@
 
           <div class="room-settings">
             <div class="room-time-setting">
-              <label>Time limit <input id="roomTimeInput" type="number" min="1" max="15" value="3" /></label>
+              <label>Time limit <input id="roomTimeInput" type="number" min="1" max="15" value="5" /></label>
               <label class="room-unlimited-setting">
                 <input id="roomUnlimitedToggle" type="checkbox" />
                 <span>Ilimitado</span>
               </label>
             </div>
-            <label>Score limit <input id="roomScoreInput" type="number" min="1" max="20" value="3" /></label>
+            <label>Score limit <input id="roomScoreInput" type="number" min="1" max="20" value="9" /></label>
             <label class="room-pro-setting">Pro mode <input id="roomProModeToggle" type="checkbox" /></label>
-            <label class="room-pro-setting">Arqueros <input id="roomKeeperToggle" type="checkbox" /></label>
+            <label class="room-pro-setting">Arqueros <input id="roomKeeperToggle" type="checkbox" checked /></label>
             <label>Stadium <span>Classic</span> <button id="pickStadiumBtn" type="button">Pick</button></label>
           </div>
 
@@ -276,6 +276,16 @@
             <h3>Desde el celular</h3>
             <p>Usá el joystick y los botones táctiles. Para jugar más cómodo, girá el teléfono y usalo en posición horizontal. Los controles quedan cerca de ambos pulgares.</p>
           </article>
+        </div>
+      </section>
+    </div>
+
+    <div id="roomClosedDialog" class="identity-dialog" hidden>
+      <section class="identity-panel room-closed-panel" role="alertdialog" aria-modal="true" aria-labelledby="roomClosedTitle">
+        <strong id="roomClosedTitle">La sala se cerró</strong>
+        <p id="roomClosedMessage">El creador de la sala salió.</p>
+        <div class="identity-actions">
+          <button id="closeRoomNoticeBtn" class="primary-button small-button" type="button">Entendido</button>
         </div>
       </section>
     </div>

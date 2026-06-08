@@ -24,6 +24,9 @@ const playerNameDialog = document.querySelector("#playerNameDialog");
 const playerNameForm = document.querySelector("#playerNameForm");
 const playerNameDialogTitle = document.querySelector("#playerNameDialogTitle");
 const cancelPlayerNameBtn = document.querySelector("#cancelPlayerNameBtn");
+const roomClosedDialog = document.querySelector("#roomClosedDialog");
+const roomClosedMessage = document.querySelector("#roomClosedMessage");
+const closeRoomNoticeBtn = document.querySelector("#closeRoomNoticeBtn");
 const connectServerBtn = document.querySelector("#connectServerBtn");
 const serverStatus = document.querySelector("#serverStatus");
 const roomNameInput = document.querySelector("#roomNameInput");
@@ -210,7 +213,7 @@ let cup;
 let rain = [];
 let gameFrame = 0;
 let celebrationFrame = 0;
-let menuMusicMuted = false;
+let menuMusicMuted = true;
 let stadiumSoundMuted = false;
 let menuMusic;
 let stadiumLoop;
@@ -219,7 +222,12 @@ let kickSound;
 let menuMusicVolume = Number(localStorage.getItem("npgMenuVolume"));
 let stadiumSoundVolume = Number(localStorage.getItem("npgStadiumVolume"));
 if (!Number.isFinite(menuMusicVolume)) menuMusicVolume = 0.5;
-if (!Number.isFinite(stadiumSoundVolume)) stadiumSoundVolume = 0.32;
+if (!Number.isFinite(stadiumSoundVolume)) stadiumSoundVolume = 0.5;
+if (localStorage.getItem("npgAudioDefaultsVersion") !== "2") {
+  stadiumSoundVolume = 0.5;
+  localStorage.setItem("npgStadiumVolume", String(stadiumSoundVolume));
+  localStorage.setItem("npgAudioDefaultsVersion", "2");
+}
 
 function showScreen(active) {
   roomOverlayOpen = false;
@@ -375,7 +383,25 @@ function unlockMenuAudio() {
   if (menu.classList.contains("is-active") && !menuMusicMuted) startMenuMusic();
 }
 
-document.addEventListener("pointerdown", unlockMenuAudio);
+function unlockMobileStadiumAudio() {
+  setupAudio();
+  if (!stadiumLoop.paused || stadiumSoundMuted) return;
+  const intendedVolume = stadiumSoundVolume;
+  stadiumLoop.volume = 0;
+  const promise = stadiumLoop.play();
+  if (!promise?.then) return;
+  promise.then(() => {
+    stadiumLoop.volume = intendedVolume;
+    if (!gameScreen.classList.contains("is-active") || stadiumSoundMuted) stadiumLoop.pause();
+  }).catch(() => {
+    stadiumLoop.volume = intendedVolume;
+  });
+}
+
+document.addEventListener("pointerdown", () => {
+  unlockMenuAudio();
+  unlockMobileStadiumAudio();
+});
 document.addEventListener("keydown", unlockMenuAudio);
 
 function updateServerStatus(text) {
@@ -571,10 +597,10 @@ async function connectOnlineServer() {
       activeRoom.started = true;
       currentMatchId = room.matchState?.matchId || null;
       spectatorViewing = getLocalRoomPlayer()?.team === "spectators";
-      roomTimeInput.value = room.settings?.timeLimit || 3;
+      roomTimeInput.value = room.settings?.timeLimit || 5;
       roomUnlimitedToggle.checked = room.settings?.unlimited === true;
       roomTimeInput.disabled = roomUnlimitedToggle.checked;
-      roomScoreInput.value = room.settings?.scoreLimit || 3;
+      roomScoreInput.value = room.settings?.scoreLimit || 9;
       roomProModeToggle.checked = room.settings?.proMode === true;
       roomKeeperToggle.checked = room.settings?.keeperEnabled === true;
       startGame({ multiplayer: true });
@@ -583,8 +609,8 @@ async function connectOnlineServer() {
       activeRoom = room;
       finishMatch();
     });
-    socket.on("room:closed", () => {
-      handleRoomClosed();
+    socket.on("room:closed", (payload) => {
+      handleRoomClosed(payload);
     });
     socket.on("match:snapshot", (snapshot) => {
       applyAuthoritativeSnapshot(snapshot);
@@ -1974,7 +2000,7 @@ function setupGame() {
   redScore = 0;
   blueScore = 0;
   remaining = multiplayerMode && !lobbyPreviewMode && !activeRoom?.settings?.unlimited
-    ? (Number(roomTimeInput?.value) || 3) * 60
+    ? (Number(roomTimeInput?.value) || 5) * 60
     : Infinity;
   if (multiplayerMode && activeRoom?.matchEndsAt) {
     remaining = Math.max(0, (Number(activeRoom.matchEndsAt) - Date.now()) / 1000);
@@ -3240,7 +3266,8 @@ function finishMatch() {
   startCelebration();
 }
 
-function handleRoomClosed() {
+function handleRoomClosed(payload = {}) {
+  const localWasHost = activeRoom?.hostId === getLocalPlayerId();
   if (matchEndRoomTimer) {
     clearTimeout(matchEndRoomTimer);
     matchEndRoomTimer = 0;
@@ -3258,6 +3285,12 @@ function handleRoomClosed() {
   stopGameAudio();
   updateServerStatus(socket?.connected ? "Online" : "Room cerrada por el creador");
   openRooms();
+  if (!localWasHost && roomClosedDialog) {
+    roomClosedMessage.textContent = payload.reason === "reconnect-timeout"
+      ? "El creador de la sala cerró el juego o perdió la conexión."
+      : "El creador de la sala salió.";
+    roomClosedDialog.hidden = false;
+  }
 }
 
 function animateCelebration() {
@@ -3490,9 +3523,9 @@ function renderRoom() {
   const localIsSpectator = getLocalRoomPlayer()?.team === "spectators";
   activeRoomName.textContent = activeRoom.name;
   if (activeRoom.settings) {
-    roomTimeInput.value = activeRoom.settings.timeLimit || 3;
+    roomTimeInput.value = activeRoom.settings.timeLimit || 5;
     roomUnlimitedToggle.checked = activeRoom.settings.unlimited === true;
-    roomScoreInput.value = activeRoom.settings.scoreLimit || 3;
+    roomScoreInput.value = activeRoom.settings.scoreLimit || 9;
     roomProModeToggle.checked = activeRoom.settings.proMode === true;
     roomKeeperToggle.checked = activeRoom.settings.keeperEnabled === true;
   }
@@ -3790,6 +3823,9 @@ serverSettingsBtn?.addEventListener("click", () => {
   }
 });
 cancelPlayerNameBtn?.addEventListener("click", closePlayerIdentity);
+closeRoomNoticeBtn?.addEventListener("click", () => {
+  roomClosedDialog.hidden = true;
+});
 playerNameForm?.addEventListener("submit", (event) => {
   event.preventDefault();
   if (!saveEnteredPlayerName()) return;
