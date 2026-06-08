@@ -86,6 +86,9 @@ const lines = [
   "El arquero ya esta mirando al juez",
 ];
 const defaultServerUrl = "https://futbol-fun-server.onrender.com";
+const clientPlayerId = sessionStorage.getItem("npgClientId")
+  || (crypto.randomUUID?.() || `player-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+sessionStorage.setItem("npgClientId", clientPlayerId);
 const gameplayKeys = new Set([
   "ArrowUp",
   "ArrowDown",
@@ -158,6 +161,7 @@ let selectedPlayerId = null;
 let roomLocked = false;
 let roomOverlayOpen = false;
 let onlineMode = false;
+let networkSessionReady = false;
 let socket = null;
 let socketServerUrl = localStorage.getItem("npgServerUrl") || defaultServerUrl;
 let onlinePlayerName = localStorage.getItem("npgPlayerName") || "";
@@ -423,8 +427,9 @@ function joinOnlineRoom(roomId) {
     playerName: onlinePlayerName,
   }, (response) => {
     if (response?.ok) {
+      networkSessionReady = true;
       activeRoom = response.room;
-      selectedPlayerId = socket.id;
+      selectedPlayerId = clientPlayerId;
       if (response.room.started) {
         spectatorViewing = false;
         startGame({ multiplayer: true });
@@ -468,11 +473,43 @@ async function connectOnlineServer() {
   try {
     await loadSocketClient(url);
     if (socket) socket.disconnect();
-    socket = window.io(url, { transports: ["websocket", "polling"] });
+    socket = window.io(url, {
+      transports: ["websocket", "polling"],
+      auth: { playerId: clientPlayerId },
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 500,
+      reconnectionDelayMax: 3000,
+      timeout: 12000,
+    });
     socket.on("connect", () => {
       onlineMode = true;
       updateServerStatus(`Online ${socket.id.slice(0, 4)}`);
       updateConnectionUi();
+      if (activeRoom?.id) {
+        networkSessionReady = false;
+        socket.emit("room:resume", { roomId: activeRoom.id }, (response) => {
+          if (!response?.ok) {
+            networkSessionReady = false;
+            handleRoomClosed();
+            return;
+          }
+          activeRoom = response.room;
+          networkSessionReady = true;
+          selectedPlayerId = clientPlayerId;
+          currentMatchId = response.room.matchState?.matchId || currentMatchId;
+          if (multiplayerMode && response.room.matchState) {
+            applyAuthoritativeSnapshot(response.room.matchState, true);
+            syncMultiplayerTeamsToField({ preserveLocal: true });
+            momentEl.textContent = "Conexion recuperada";
+            phraseTimer = 2;
+          } else if (roomScreen.classList.contains("is-active")) {
+            renderRoom();
+          }
+        });
+      } else {
+        networkSessionReady = true;
+      }
       socket.emit("rooms:list", (response) => {
         if (response?.ok) {
           multiplayerRooms = response.rooms;
@@ -483,6 +520,14 @@ async function connectOnlineServer() {
     });
     socket.on("disconnect", () => {
       onlineMode = false;
+      networkSessionReady = false;
+      keys.clear();
+      touchSprintActive = false;
+      resetTouchStick();
+      if (multiplayerMode) {
+        momentEl.textContent = "Reconectando...";
+        phraseTimer = 999;
+      }
       roomListState = "loading";
       updateServerStatus("Reconectando...");
       updateConnectionUi();
@@ -507,7 +552,7 @@ async function connectOnlineServer() {
       roomLocked = Boolean(room.locked);
       selectedPlayerId = selectedPlayerId && room.players.some((roomPlayer) => roomPlayer.id === selectedPlayerId)
         ? selectedPlayerId
-        : socket.id;
+        : clientPlayerId;
       if (roomScreen.classList.contains("is-active")) renderRoom();
       updateSpectatorNotice();
       if (multiplayerMode) {
@@ -1359,7 +1404,7 @@ function getLocalMultiplayerStartPosition() {
 }
 
 function getLocalPlayerId() {
-  return onlineMode && socket?.id ? socket.id : "local-host";
+  return activeRoom || onlineMode ? clientPlayerId : "local-host";
 }
 
 function getUnitPlayerId(unit) {
@@ -1461,17 +1506,17 @@ function applyNetworkKickoffState(state = {}) {
 }
 
 function isOnlineHost() {
-  return onlineMode && socket?.connected && activeRoom?.hostId === socket.id;
+  return onlineMode && socket?.connected && activeRoom?.hostId === clientPlayerId;
 }
 
 function isCurrentRoomHost() {
   if (!activeRoom) return false;
-  if (onlineMode && socket?.connected) return activeRoom.hostId === socket.id;
+  if (onlineMode && socket?.connected) return activeRoom.hostId === clientPlayerId;
   return true;
 }
 
 function usesNetworkBallAuthority() {
-  return onlineMode && socket?.connected && multiplayerMode;
+  return multiplayerMode && Boolean(activeRoom);
 }
 
 function getLocalRoomPlayer() {
@@ -2240,6 +2285,10 @@ function prepareKeeperForShot(dir, chargeRatio) {
 
 function kickBall(power, label, chargeRatio = 0, liftPower = 0, soundKind = "shot") {
   if (!player || !player.visible || !ball || goalCooldown > 0) return;
+  if (multiplayerMode && (!socket?.connected || !networkSessionReady)) {
+    momentEl.textContent = "Reconectando...";
+    return;
+  }
   if (multiplayerMode && getLocalRoomPlayer()?.team === "spectators") return;
   const distance = player.position.distanceTo(ball.position);
   if (distance > 3.2) {
@@ -2898,6 +2947,10 @@ function updateSpectatorPlayer(dt) {
 
 function updatePlayer(dt) {
   if (!player.visible) return;
+  if (multiplayerMode && (!socket?.connected || !networkSessionReady)) {
+    animatePlayerRun(player, dt, false);
+    return;
+  }
   if (multiplayerMode && getLocalRoomPlayer()?.team === "spectators" && spectatorViewing) {
     updateSpectatorPlayer(dt);
     return;
@@ -3197,6 +3250,7 @@ function handleRoomClosed() {
   if (gameFrame) cancelAnimationFrame(gameFrame);
   gameFrame = 0;
   multiplayerMode = false;
+  networkSessionReady = false;
   roomOverlayOpen = false;
   activeRoom = null;
   selectedPlayerId = null;
@@ -3316,6 +3370,7 @@ function leaveRoom() {
   if (gameFrame) cancelAnimationFrame(gameFrame);
   gameFrame = 0;
   multiplayerMode = false;
+  networkSessionReady = false;
   spectatorViewing = false;
   roomOverlayOpen = false;
   activeRoom = null;
@@ -3355,7 +3410,8 @@ function createOnlineRoom() {
         return;
       }
       activeRoom = response.room;
-      selectedPlayerId = socket.id;
+      selectedPlayerId = clientPlayerId;
+      networkSessionReady = true;
       showRoomLobbyPreview();
     });
     return;
@@ -3932,6 +3988,11 @@ window.addEventListener("keyup", (event) => {
   }
 });
 window.addEventListener("resize", resize);
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState !== "visible" || !socket || socket.connected) return;
+  updateServerStatus("Reconectando...");
+  socket.connect();
+});
 
 if (new URLSearchParams(window.location.search).has("play")) {
   startGame();

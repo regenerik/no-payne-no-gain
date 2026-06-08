@@ -275,6 +275,11 @@ button {
   display: none;
 }
 
+.identity-actions {
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .how-to-dialog {
   position: fixed;
   inset: 0;
@@ -1057,6 +1062,10 @@ h2 {
   display: none;
   pointer-events: none;
   touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .touch-enabled .screen-game.is-active .touch-controls {
@@ -1087,6 +1096,10 @@ h2 {
   font-weight: 950;
   text-transform: uppercase;
   touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .touch-quick button {
@@ -1705,6 +1718,14 @@ h2 {
     min-height: 64px;
     padding: 0 4px;
     font-size: 8px;
+  }
+
+  .touch-actions button:nth-child(2) {
+    order: 3;
+  }
+
+  .touch-actions button:nth-child(3) {
+    order: 2;
   }
 
   .controls {
