@@ -1259,8 +1259,8 @@ function addTrainingMuseum() {
   addBox(0.42, 5.8, 8, -49, museumWallCenterY, 8, wallMat);
   addBox(26, 0.34, 24, museumCenterX, trainingMuseumFloorY + 5.72, 0, ceilingMat);
 
-  addBox(25.4, 0.28, 0.24, museumCenterX, trainingMuseumFloorY + 2.1, -11.72, redAccentMat, false);
-  addBox(25.4, 0.28, 0.24, museumCenterX, trainingMuseumFloorY + 2.1, 11.72, redAccentMat, false);
+  addBox(25.4, 0.28, 0.06, museumCenterX, trainingMuseumFloorY + 2.1, -11.72, redAccentMat, false);
+  addBox(25.4, 0.28, 0.06, museumCenterX, trainingMuseumFloorY + 2.1, 11.72, redAccentMat, false);
   addBox(0.24, 0.28, 23.4, -74.72, trainingMuseumFloorY + 2.1, 0, redAccentMat, false);
 
   const textureLoader = new THREE.TextureLoader();

@@ -665,6 +665,8 @@ la versión multijugador actual.
   descarga sin modificar su encuadre.
 - Se agrego filtrado de textura para mantener bordes limpios y buena
   definicion al acercarse a los cuadros.
+- La franja roja decorativa fue retrasada contra la pared para que recorra
+  el museo por detras de las fotografias sin atravesarlas visualmente.
 
 
 Este proyecto comenzó como una pequeña broma futbolera protagonizada por
