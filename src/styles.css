@@ -57,9 +57,9 @@ button {
 
 .screen-menu {
   background:
-    linear-gradient(90deg, rgba(0, 0, 0, 0.94), rgba(0, 0, 0, 0.44) 48%, rgba(0, 0, 0, 0.06)),
-    linear-gradient(180deg, rgba(23, 74, 48, 0.16), rgba(3, 6, 7, 0.72)),
-    url("https://upload.wikimedia.org/wikipedia/commons/1/12/Tim_Payne_%282025%2C_photo_1%29.jpg");
+    linear-gradient(90deg, rgba(0, 0, 0, 0.9), rgba(0, 0, 0, 0.38) 52%, rgba(0, 0, 0, 0.12)),
+    linear-gradient(180deg, rgba(5, 31, 20, 0.08), rgba(3, 8, 7, 0.62)),
+    url("../menu-estadio.png");
   background-position: center;
   background-size: cover;
 }

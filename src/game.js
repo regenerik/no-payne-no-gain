@@ -87,11 +87,11 @@ const matchLength = 180;
 const field = { width: 42, length: 76 };
 const keys = new Set();
 const trainingLines = [
-  "Payne cambia de marcha",
+  "El entrenamiento empieza a ponerse serio",
   "La pelota firmo contrato con el gol",
   "El rival se acerca y reconsidera su vida",
-  "Nueva Zelanda activa modo leyenda",
-  "Payne no corre: el pasto se mueve",
+  "El delantero no corre: el pasto se mueve",
+  "La practica ya parece una final",
   "El arquero ya esta mirando al juez",
 ];
 const multiplayerLines = [
@@ -149,6 +149,9 @@ let kickArrow;
 let goalKeeper;
 let keeperState;
 let goalKeepers = [];
+let trainingFreeMode = false;
+let trainingWorldColliders = [];
+let museumGroup = null;
 let opponents = [];
 let multiplayerActors = [];
 let playerTags = [];
@@ -786,7 +789,7 @@ function updateStadiumScoreboard() {
   ctx.fillText(multiplayerMode ? `${redScore} - ${blueScore}` : `${score} - 0`, 256, 124);
   ctx.font = "900 24px Arial";
   ctx.fillStyle = "#7cffb2";
-  ctx.fillText(multiplayerMode ? "ROJO        AZUL" : "NO PAYNE NO GAIN", 256, 44);
+  ctx.fillText(multiplayerMode ? "ROJO        AZUL" : "FUTBOL WORLD CUP", 256, 44);
   ctx.font = "800 28px Arial";
   ctx.fillStyle = "#dce8ed";
   ctx.fillText(stadiumTimerText || (multiplayerMode ? "00:00" : "ENTRENAMIENTO"), 256, 204);
@@ -917,6 +920,74 @@ function constrainSpectatorToStands(unit) {
   }
 }
 
+function constrainTrainingExplorer(unit) {
+  if (multiplayerMode || !trainingFreeMode) {
+    unit.position.x = THREE.MathUtils.clamp(unit.position.x, -field.width / 2 + 2, field.width / 2 - 2);
+    unit.position.z = THREE.MathUtils.clamp(unit.position.z, -field.length / 2 + 1.1, field.length / 2 - 1.1);
+    return;
+  }
+
+  unit.position.x = THREE.MathUtils.clamp(unit.position.x, -67.8, field.width / 2 + 13);
+  unit.position.z = THREE.MathUtils.clamp(unit.position.z, -49, 49);
+  // The west side only opens through the discreet central tunnel.
+  if (unit.position.x < -field.width / 2 - 1 && Math.abs(unit.position.z) > 3.35) {
+    unit.position.x = -field.width / 2 - 1;
+  }
+  resolveTrainingPlayerWorldCollisions(unit);
+}
+
+function collideBallWithTrainingWorld() {
+  if (multiplayerMode || !trainingFreeMode || !ball) return;
+  const radius = 0.42;
+  for (const box of trainingWorldColliders) {
+    const closest = new THREE.Vector3(
+      THREE.MathUtils.clamp(ball.position.x, box.min.x, box.max.x),
+      THREE.MathUtils.clamp(ball.position.y, box.min.y, box.max.y),
+      THREE.MathUtils.clamp(ball.position.z, box.min.z, box.max.z)
+    );
+    const delta = ball.position.clone().sub(closest);
+    if (delta.lengthSq() >= radius * radius) continue;
+    const normal = delta.lengthSq() > 0.0001
+      ? delta.normalize()
+      : new THREE.Vector3(
+          Math.abs(ballVelocity.x) > Math.abs(ballVelocity.z) ? -Math.sign(ballVelocity.x || 1) : 0,
+          0,
+          Math.abs(ballVelocity.z) >= Math.abs(ballVelocity.x) ? -Math.sign(ballVelocity.z || 1) : 0
+        );
+    ball.position.copy(closest).addScaledVector(normal, radius + 0.02);
+    const velocity3 = new THREE.Vector3(ballVelocity.x, ballVerticalVelocity, ballVelocity.z);
+    velocity3.reflect(normal).multiplyScalar(0.68);
+    ballVelocity.set(velocity3.x, 0, velocity3.z);
+    ballVerticalVelocity = velocity3.y;
+  }
+}
+
+function resolveTrainingPlayerWorldCollisions(unit) {
+  if (multiplayerMode || !trainingFreeMode || !unit) return;
+  const radius = 0.72;
+  for (const box of trainingWorldColliders) {
+    if (unit.position.y > box.max.y + 0.5) continue;
+    const closestX = THREE.MathUtils.clamp(unit.position.x, box.min.x, box.max.x);
+    const closestZ = THREE.MathUtils.clamp(unit.position.z, box.min.z, box.max.z);
+    const dx = unit.position.x - closestX;
+    const dz = unit.position.z - closestZ;
+    const distance = Math.hypot(dx, dz);
+    if (distance >= radius) continue;
+    if (distance > 0.001) {
+      unit.position.x += (dx / distance) * (radius - distance);
+      unit.position.z += (dz / distance) * (radius - distance);
+      continue;
+    }
+    const distances = [
+      { axis: "x", amount: box.min.x - unit.position.x - radius },
+      { axis: "x", amount: box.max.x - unit.position.x + radius },
+      { axis: "z", amount: box.min.z - unit.position.z - radius },
+      { axis: "z", amount: box.max.z - unit.position.z + radius },
+    ].sort((a, b) => Math.abs(a.amount) - Math.abs(b.amount));
+    unit.position[distances[0].axis] += distances[0].amount;
+  }
+}
+
 function spawnSpectatorConfetti(origin) {
   if (!scene) return;
   const colors = [0xffffff, 0x7cffb2, 0xf7c948, 0x91c9ff, 0xff5671];
@@ -980,7 +1051,92 @@ function createKickArrow() {
   return group;
 }
 
-function addField() {
+function addTrainingMuseum() {
+  museumGroup = new THREE.Group();
+  museumGroup.name = "trainingMuseum";
+  const wallMat = new THREE.MeshStandardMaterial({ color: 0x20282c, roughness: 0.86 });
+  const floorMat = new THREE.MeshStandardMaterial({ color: 0x384148, roughness: 0.75 });
+  const frameMat = new THREE.MeshStandardMaterial({ color: 0xb58a48, roughness: 0.5 });
+  const placeholderColors = [0x1f6a45, 0x274f88, 0x8b3447, 0x6c4a8e, 0x98752d, 0x376c74];
+  const addBox = (w, h, d, x, y, z, material = wallMat, collidable = true) => {
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), material);
+    mesh.position.set(x, y, z);
+    museumGroup.add(mesh);
+    if (collidable) trainingWorldColliders.push(new THREE.Box3().setFromObject(mesh));
+    return mesh;
+  };
+  const addInvisibleCollider = (minX, minY, minZ, maxX, maxY, maxZ) => {
+    trainingWorldColliders.push(new THREE.Box3(
+      new THREE.Vector3(minX, minY, minZ),
+      new THREE.Vector3(maxX, maxY, maxZ)
+    ));
+  };
+
+  // Stadium surfaces become physical only when free mode starts.
+  addInvisibleCollider(field.width / 2 + 3.7, 0, -50, field.width / 2 + 15, 9, 50);
+  addInvisibleCollider(-field.width / 2 - 15, 0, -50, -field.width / 2 - 3.7, 9, -3.6);
+  addInvisibleCollider(-field.width / 2 - 15, 0, 3.6, -field.width / 2 - 3.7, 9, 50);
+  addInvisibleCollider(-field.width / 2 - 4, 0, field.length / 2 + 3.7, field.width / 2 + 4, 9, field.length / 2 + 15);
+  addInvisibleCollider(-field.width / 2 - 4, 0, -field.length / 2 - 15, field.width / 2 + 4, 9, -field.length / 2 - 3.7);
+
+  // Hidden mouth opposite the scoreboard, followed by a dim access corridor.
+  const hiddenMouth = new THREE.Mesh(
+    new THREE.BoxGeometry(0.5, 4.2, 7.2),
+    new THREE.MeshBasicMaterial({ color: 0x020303 })
+  );
+  hiddenMouth.position.set(-25.1, 2.1, 0);
+  scene.add(hiddenMouth);
+  addBox(22, 0.18, 8, -36, 0.02, 0, floorMat, false);
+  addBox(22, 4.8, 0.35, -36, 2.4, -4, wallMat);
+  addBox(22, 4.8, 0.35, -36, 2.4, 4, wallMat);
+  addBox(22, 0.3, 8, -36, 4.75, 0, wallMat);
+
+  // Museum room, intentionally simple until the final player photos arrive.
+  addBox(24, 0.2, 24, -57, 0.02, 0, floorMat, false);
+  addBox(24, 5.4, 0.4, -57, 2.7, -12, wallMat);
+  addBox(24, 5.4, 0.4, -57, 2.7, 12, wallMat);
+  addBox(0.4, 5.4, 24, -69, 2.7, 0, wallMat);
+  addBox(0.4, 5.4, 8, -45, 2.7, -8, wallMat);
+  addBox(0.4, 5.4, 8, -45, 2.7, 8, wallMat);
+  addBox(24, 0.3, 24, -57, 5.25, 0, wallMat);
+
+  for (let i = 0; i < 6; i += 1) {
+    const z = -9 + i * 3.6;
+    addBox(0.26, 3.0, 2.55, -68.72, 2.65, z, frameMat, false);
+    const placeholder = addBox(
+      0.28,
+      2.55,
+      2.12,
+      -68.55,
+      2.65,
+      z,
+      new THREE.MeshBasicMaterial({ color: placeholderColors[i], side: THREE.DoubleSide }),
+      false
+    );
+    placeholder.userData.museumFrame = i;
+  }
+
+  for (const x of [-62, -54, -48]) {
+    const light = new THREE.PointLight(0xfff0cf, 1.05, 13);
+    light.position.set(x, 4.35, 0);
+    museumGroup.add(light);
+  }
+  museumGroup.visible = false;
+  scene.add(museumGroup);
+}
+
+function unlockTrainingFreeMode() {
+  if (multiplayerMode || trainingFreeMode) return;
+  trainingFreeMode = true;
+  if (museumGroup) museumGroup.visible = true;
+  goalBanner.textContent = "MODO LIBRE DESBLOQUEADO";
+  goalBanner.classList.remove("show");
+  void goalBanner.offsetWidth;
+  goalBanner.classList.add("show");
+  momentEl.textContent = "Los limites desaparecieron. Hay algo oculto bajo la tribuna";
+}
+
+function addField({ trainingMode = false } = {}) {
   const cityGround = new THREE.Mesh(
     new THREE.PlaneGeometry(180, 210),
     new THREE.MeshBasicMaterial({ color: 0x203526 })
@@ -1449,6 +1605,8 @@ function addField() {
   addFloodlight(23, field.length / 2 + 18, 1);
   addFloodlight(-23, -field.length / 2 - 18, -1);
   addFloodlight(23, -field.length / 2 - 18, -1);
+
+  if (trainingMode) addTrainingMuseum();
 }
 
 function getTeamStartPosition(team, index, total) {
@@ -2049,11 +2207,14 @@ function setupGame() {
   sun.castShadow = true;
   scene.add(sun);
 
-  addField();
+  trainingFreeMode = false;
+  trainingWorldColliders = [];
+  museumGroup = null;
+  addField({ trainingMode: !multiplayerMode });
 
   const localRoomPlayer = getLocalRoomPlayer();
   player = createPlayer(true, multiplayerMode ? localRoomPlayer.team : "neutral");
-  player.userData.name = multiplayerMode ? localRoomPlayer.name : "Payne";
+  player.userData.name = multiplayerMode ? localRoomPlayer.name : "Jugador";
   player.userData.team = multiplayerMode ? localRoomPlayer.team : "red";
   player.userData.isLocal = true;
   player.visible = !multiplayerMode
@@ -2279,7 +2440,7 @@ function updatePlayerTags() {
   });
 }
 
-function ballDirectionFromPayne() {
+function ballDirectionFromPlayer() {
   if (isKickoffTaker(player)) {
     return new THREE.Vector3(Math.sin(playerAngle), 0, Math.cos(playerAngle)).normalize();
   }
@@ -2452,7 +2613,7 @@ function tryLocalKeeperClear(state) {
   state.mode = "clear";
   state.diveTimer = 0.42;
   state.clearanceCooldown = 1.15;
-  momentEl.textContent = "El arquero le saca la pelota de los pies a Payne";
+  momentEl.textContent = "El arquero le saca la pelota de los pies";
   return true;
 }
 
@@ -2466,13 +2627,13 @@ function kickBall(power, label, chargeRatio = 0, liftPower = 0, soundKind = "sho
   const distance = player.position.distanceTo(ball.position);
   if (distance > 3.2) {
     momentEl.textContent = modePhrase(
-      "Payne mira la pelota: todavia no llega",
+      "La pelota todavia queda lejos",
       "La pelota queda lejos. El intento fue emocional"
     );
     return;
   }
 
-  const dir = ballDirectionFromPayne();
+  const dir = ballDirectionFromPlayer();
   const localTeam = player.userData?.team || getLocalRoomPlayer()?.team;
   if (kickoffLocked && multiplayerMode && (localTeam !== kickoffTeam || getLocalPlayerId() !== getKickoffPlayerId())) {
     momentEl.textContent = `Saca ${kickoffTeam === "red" ? "Rojo" : "Azul"} desde el centro`;
@@ -2527,8 +2688,8 @@ function releaseChargedShot() {
   const liftPower = 2.2 + chargeRatio * 7.0;
   const percent = Math.round(chargeRatio * 80);
   const label = chargeRatio === 0
-    ? modePhrase("Payne remata fuerte hacia su eje", "Remate fuerte y decisiones cuestionables")
-    : modePhrase(`Payne carga el remate: +${percent}%`, `Remate cargado: +${percent}%`);
+    ? modePhrase("Remate fuerte hacia el eje", "Remate fuerte y decisiones cuestionables")
+    : `Remate cargado: +${percent}%`;
   kickBall(power, label, chargeRatio, liftPower, "shot");
 }
 
@@ -2547,7 +2708,7 @@ function toggleCameraMode() {
   if (cameraMode === "broadcast" && ball) broadcastFocusZ = ball.position.z;
   momentEl.textContent = cameraMode === "broadcast"
     ? "Camara clasica activada"
-    : modePhrase("Camara Payne activada", "Camara tercera persona activada");
+    : "Camara tercera persona activada";
 }
 
 function updateGameplayControlHints() {
@@ -2583,7 +2744,7 @@ function updateGameplayControlHints() {
   if (touchProBtn) touchProBtn.style.display = spectator ? "none" : "";
 }
 
-function celebrateGoal(scoringTeam = "payne") {
+function celebrateGoal(scoringTeam = "training") {
   if (!stadiumSoundMuted) {
     setupAudio();
     goalSound.currentTime = 0;
@@ -2598,7 +2759,8 @@ function celebrateGoal(scoringTeam = "payne") {
   } else {
     score += 1;
     scoreEl.textContent = String(score);
-    goalBanner.textContent = "GOOOOOOL DE PAYNE";
+    goalBanner.textContent = "GOOOOOOL";
+    if (score >= 20) setTimeout(unlockTrainingFreeMode, 900);
   }
   updateStadiumScoreboard();
   goalBanner.classList.remove("show");
@@ -2606,7 +2768,7 @@ function celebrateGoal(scoringTeam = "payne") {
   goalBanner.classList.add("show");
   momentEl.textContent = multiplayerMode
     ? `${scoringTeam === "red" ? "Rojo" : "Azul"} mete gol y el estadio entiende todo`
-    : "GOOOL. Esta vez la fisica tambien eligio a Payne";
+    : "GOOOL. La fisica tambien quiso entrar";
   if (multiplayerMode) beginKickoffFor(scoringTeam);
   if (goalKeeper) {
     const keeperDive = Math.random() > 0.5 ? -1 : 1;
@@ -2661,7 +2823,7 @@ function celebrateGoal(scoringTeam = "payne") {
       networkBallOwnerId = null;
       pendingLocalKickId = null;
       ballMagnetCooldown = 0;
-      momentEl.textContent = multiplayerMode ? "Saque desde el centro" : "Saca Payne desde el centro";
+      momentEl.textContent = "Saque desde el centro";
     }
   }, 950);
 }
@@ -2857,7 +3019,7 @@ function resolvePlayerActorCollisions() {
 function detectGoal(maxZ, minZ, requireDirection = true) {
   if (Math.abs(ball.position.x) >= 4.2 || ball.position.y >= 3.08) return false;
   if (ball.position.z >= maxZ && (!requireDirection || ballVelocity.z > 0.8)) {
-    celebrateGoal(multiplayerMode ? "red" : "payne");
+    celebrateGoal(multiplayerMode ? "red" : "training");
     return true;
   }
   if (multiplayerMode && ball.position.z <= minZ && (!requireDirection || ballVelocity.z < -0.8)) {
@@ -2921,10 +3083,11 @@ function updateBall(dt) {
   }
 
   const ballRadius = 0.42;
-  const minX = -field.width / 2 + ballRadius;
-  const maxX = field.width / 2 - ballRadius;
-  const minZ = -field.length / 2 + ballRadius;
-  const maxZ = field.length / 2 - ballRadius;
+  const freeTraining = !multiplayerMode && trainingFreeMode;
+  const minX = freeTraining ? -68 + ballRadius : -field.width / 2 + ballRadius;
+  const maxX = freeTraining ? field.width / 2 + 13 - ballRadius : field.width / 2 - ballRadius;
+  const minZ = freeTraining ? -49 + ballRadius : -field.length / 2 + ballRadius;
+  const maxZ = freeTraining ? 49 - ballRadius : field.length / 2 - ballRadius;
   const playerRadius = 0.82;
   const toBall = ball.position.clone().sub(player.position);
   toBall.y = 0;
@@ -2985,6 +3148,7 @@ function updateBall(dt) {
 
   applyBallBodyCollisions();
   handleKeeperBallCollision(previousBallPosition);
+  collideBallWithTrainingWorld();
   releaseKickoffIfBallMoved();
 
   if (detectGoal(maxZ, minZ)) return;
@@ -3026,7 +3190,7 @@ function updateKickArrow() {
     kickArrow.visible = false;
     return;
   }
-  const dir = ballDirectionFromPayne();
+  const dir = ballDirectionFromPlayer();
   const distance = player.position.distanceTo(ball.position);
   const inRange = distance <= 3.2;
   kickArrow.visible = inRange;
@@ -3160,8 +3324,7 @@ function updatePlayer(dt) {
     const touchSprintMultiplier = sprintActive() ? 1.35 : 1;
     if (cameraMode === "broadcast") {
       if (!kickoffTaker) player.position.addScaledVector(touchDir, 10.5 * analog * touchSprintMultiplier * dt);
-      player.position.x = THREE.MathUtils.clamp(player.position.x, -field.width / 2 + 2, field.width / 2 - 2);
-      player.position.z = THREE.MathUtils.clamp(player.position.z, -field.length / 2 + 1.1, field.length / 2 - 1.1);
+      constrainTrainingExplorer(player);
       playerAngle = Math.atan2(touchDir.x, touchDir.z);
       playerMoveDir.copy(touchDir);
       player.position.y = kickoffTaker ? THREE.MathUtils.lerp(player.position.y, 0, 0.18) : Math.abs(Math.sin(performance.now() * 0.014)) * 0.08;
@@ -3183,8 +3346,7 @@ function updatePlayer(dt) {
       const forward = new THREE.Vector3(Math.sin(playerAngle), 0, Math.cos(playerAngle));
       if (!kickoffTaker) player.position.addScaledVector(forward, touchThrottle * 10.5 * analog * touchSprintMultiplier * dt);
       playerMoveDir.copy(forward).multiplyScalar(Math.sign(touchThrottle)).normalize();
-      player.position.x = THREE.MathUtils.clamp(player.position.x, -field.width / 2 + 2, field.width / 2 - 2);
-      player.position.z = THREE.MathUtils.clamp(player.position.z, -field.length / 2 + 1.1, field.length / 2 - 1.1);
+      constrainTrainingExplorer(player);
       player.position.y = kickoffTaker ? THREE.MathUtils.lerp(player.position.y, 0, 0.18) : Math.abs(Math.sin(performance.now() * 0.014)) * 0.08;
     } else {
       playerMoveDir.set(Math.sin(playerAngle), 0, Math.cos(playerAngle));
@@ -3208,8 +3370,7 @@ function updatePlayer(dt) {
       screenDir.normalize();
       const sprintMultiplier = sprintActive() ? 1.35 : 1;
       if (!kickoffTaker) player.position.addScaledVector(screenDir, 10.5 * sprintMultiplier * dt);
-      player.position.x = THREE.MathUtils.clamp(player.position.x, -field.width / 2 + 2, field.width / 2 - 2);
-      player.position.z = THREE.MathUtils.clamp(player.position.z, -field.length / 2 + 1.1, field.length / 2 - 1.1);
+      constrainTrainingExplorer(player);
       playerAngle = Math.atan2(screenDir.x, screenDir.z);
       playerMoveDir.copy(screenDir);
       player.position.y = kickoffTaker ? THREE.MathUtils.lerp(player.position.y, 0, 0.18) : Math.abs(Math.sin(performance.now() * 0.014)) * 0.08;
@@ -3242,8 +3403,7 @@ function updatePlayer(dt) {
     const sprintMultiplier = sprintActive() ? 1.35 : 1;
     if (!kickoffTaker) player.position.addScaledVector(forward, throttle * 10.5 * sprintMultiplier * dt);
     playerMoveDir.copy(forward).multiplyScalar(throttle).normalize();
-    player.position.x = THREE.MathUtils.clamp(player.position.x, -field.width / 2 + 2, field.width / 2 - 2);
-    player.position.z = THREE.MathUtils.clamp(player.position.z, -field.length / 2 + 1.1, field.length / 2 - 1.1);
+    constrainTrainingExplorer(player);
     player.position.y = kickoffTaker ? THREE.MathUtils.lerp(player.position.y, 0, 0.18) : Math.abs(Math.sin(performance.now() * 0.014)) * 0.08;
   } else {
     playerMoveDir.set(Math.sin(playerAngle), 0, Math.cos(playerAngle));
@@ -3976,11 +4136,11 @@ function setupTouchControls() {
       }
       return;
     }
-    kickBall(16.66, modePhrase("Payne mete pase alto", "Pase alto: que la busque el cielo"), 0, 8.4, "pass");
+    kickBall(16.66, modePhrase("Pase alto por encima del arquero", "Pase alto: que la busque el cielo"), 0, 8.4, "pass");
   });
   touchPassBtn?.addEventListener("pointerdown", (event) => {
     event.preventDefault();
-    kickBall(16.66, modePhrase("Payne mete un pase", "Pase potente al espacio"), 0, 0.8, "pass");
+    kickBall(16.66, "Pase potente al espacio", 0, 0.8, "pass");
   });
   touchShotBtn?.addEventListener("pointerdown", (event) => {
     event.preventDefault();
@@ -4191,10 +4351,10 @@ window.addEventListener("keydown", (event) => {
     return;
   }
   if (event.code === "KeyQ") {
-    kickBall(16.66, modePhrase("Payne mete pase alto", "Pase alto: que la busque el cielo"), 0, 8.4, "pass");
+    kickBall(16.66, modePhrase("Pase alto por encima del arquero", "Pase alto: que la busque el cielo"), 0, 8.4, "pass");
   }
   if (event.code === "KeyE" && !event.ctrlKey) {
-    kickBall(16.66, modePhrase("Payne mete un pase", "Pase potente al espacio"), 0, 0.8, "pass");
+    kickBall(16.66, "Pase potente al espacio", 0, 0.8, "pass");
   }
   if (event.code === "KeyC") {
     toggleCameraMode();

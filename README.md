@@ -1,4 +1,4 @@
-# No Payne No Gain
+# Futbol World Cup
 
 Juego de futbol 3D para navegador con entrenamiento y multijugador online.
 
@@ -33,5 +33,4 @@ se predice inmediatamente y los estados remotos se suavizan entre snapshots.
 
 El juego usa Three.js desde CDN, por lo que necesita internet la primera vez que se abre.
 
-Fondo del menu: `Tim Payne (2025, photo 1)` de JaumeBG, via Wikimedia Commons,
-licencia CC BY-SA 4.0.
+El fondo del menu utiliza una captura del estadio generado por el propio juego.

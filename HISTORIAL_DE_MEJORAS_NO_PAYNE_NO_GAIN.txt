@@ -1,4 +1,4 @@
-NO PAYNE NO GAIN / TIM PAYNE FOOTBALLGAME
+FUTBOL WORLD CUP
 HISTORIAL DE DESARROLLO Y MEJORAS
 
 Este documento resume la evolución del juego desde la primera idea hasta
@@ -540,6 +540,41 @@ la versión multijugador actual.
 - La recarga completa se mantiene en cinco segundos.
 - La nueva duracion se sincroniza entre la barra local y la simulacion
   autoritativa del servidor.
+
+
+29. FUTBOL WORLD CUP Y MODO LIBRE DE ENTRENAMIENTO
+
+- El juego abandono la identidad "No Payne No Gain" y paso a llamarse
+  "Futbol World Cup".
+- Se actualizaron el titulo HTML, el encabezado, el nombre principal, la
+  descripcion del menu y el marcador del estadio.
+- El fondo fotografico de Tim Payne fue eliminado.
+- El menu ahora utiliza una captura local del estadio y la cancha del propio
+  juego vista desde una perspectiva elevada.
+- Se eliminaron las referencias visibles a Tim Payne y Nueva Zelanda en el
+  Modo entrenamiento.
+- La camiseta con el numero 2 permanece como un pequeño guiño a la historia
+  original del proyecto.
+- Las frases, goles, pases, remates y camara de entrenamiento ahora utilizan
+  textos neutrales de futbol.
+- Se creo una variante independiente del escenario para entrenamiento.
+- El estadio utilizado por multijugador permanece separado y no recibe el
+  museo, el tunel ni las reglas de exploracion.
+- Al alcanzar 20 goles en entrenamiento aparece el anuncio
+  "Modo libre desbloqueado".
+- En Modo libre desaparecen los limites artificiales de la cancha y el
+  jugador puede explorar fuera del campo.
+- La pelota tambien puede abandonar el terreno y rebota contra tribunas,
+  paredes, corredor y estructuras del nuevo sector.
+- Se incorporo una entrada oscura y discreta bajo la tribuna opuesta al
+  marcador.
+- La entrada parece una boca de tunel normal desde la cancha y no revela
+  claramente el contenido secreto.
+- Al atravesar el tunel desbloqueado se accede a un mini museo.
+- El museo incluye piso, techo, paredes, iluminacion interior y seis marcos
+  placeholder preparados para recibir fotografias de futbolistas.
+- El jugador y la pelota tienen colisiones dentro del tunel y del museo.
+- Antes de llegar a los 20 goles, el museo permanece oculto e inaccesible.
 
 
 Este proyecto comenzó como una pequeña broma futbolera protagonizada por
