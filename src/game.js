@@ -152,6 +152,7 @@ let goalKeepers = [];
 let trainingFreeMode = false;
 let trainingWorldColliders = [];
 let museumGroup = null;
+let trainingTunnelSeal = null;
 let opponents = [];
 let multiplayerActors = [];
 let playerTags = [];
@@ -927,7 +928,7 @@ function constrainTrainingExplorer(unit) {
     return;
   }
 
-  unit.position.x = THREE.MathUtils.clamp(unit.position.x, -67.8, field.width / 2 + 13);
+  unit.position.x = THREE.MathUtils.clamp(unit.position.x, -68.1, field.width / 2 + 13);
   unit.position.z = THREE.MathUtils.clamp(unit.position.z, -49, 49);
   // The west side only opens through the discreet central tunnel.
   if (unit.position.x < -field.width / 2 - 1 && Math.abs(unit.position.z) > 3.35) {
@@ -1056,6 +1057,7 @@ function addTrainingMuseum() {
   museumGroup.name = "trainingMuseum";
   const wallMat = new THREE.MeshStandardMaterial({ color: 0x20282c, roughness: 0.86 });
   const floorMat = new THREE.MeshStandardMaterial({ color: 0x384148, roughness: 0.75 });
+  const ceilingMat = new THREE.MeshStandardMaterial({ color: 0x151b1e, roughness: 0.9 });
   const frameMat = new THREE.MeshStandardMaterial({ color: 0xb58a48, roughness: 0.5 });
   const placeholderColors = [0x1f6a45, 0x274f88, 0x8b3447, 0x6c4a8e, 0x98752d, 0x376c74];
   const addBox = (w, h, d, x, y, z, material = wallMat, collidable = true) => {
@@ -1079,17 +1081,29 @@ function addTrainingMuseum() {
   addInvisibleCollider(-field.width / 2 - 4, 0, field.length / 2 + 3.7, field.width / 2 + 4, 9, field.length / 2 + 15);
   addInvisibleCollider(-field.width / 2 - 4, 0, -field.length / 2 - 15, field.width / 2 + 4, 9, -field.length / 2 - 3.7);
 
-  // Hidden mouth opposite the scoreboard, followed by a dim access corridor.
-  const hiddenMouth = new THREE.Mesh(
-    new THREE.BoxGeometry(0.5, 4.2, 7.2),
-    new THREE.MeshBasicMaterial({ color: 0x020303 })
+  // A real passage crosses the carved opening in the west stand.
+  trainingTunnelSeal = new THREE.Mesh(
+    new THREE.BoxGeometry(0.38, 4.45, 7.3),
+    new THREE.MeshBasicMaterial({ color: 0x010202 })
   );
-  hiddenMouth.position.set(-25.1, 2.1, 0);
-  scene.add(hiddenMouth);
-  addBox(22, 0.18, 8, -36, 0.02, 0, floorMat, false);
-  addBox(22, 4.8, 0.35, -36, 2.4, -4, wallMat);
-  addBox(22, 4.8, 0.35, -36, 2.4, 4, wallMat);
-  addBox(22, 0.3, 8, -36, 4.75, 0, wallMat);
+  trainingTunnelSeal.position.set(-25.72, 2.22, 0);
+  scene.add(trainingTunnelSeal);
+
+  addBox(21.8, 0.2, 7.2, -36.5, 0.04, 0, floorMat, false);
+  addBox(21.8, 4.7, 0.34, -36.5, 2.35, -3.75, wallMat);
+  addBox(21.8, 4.7, 0.34, -36.5, 2.35, 3.75, wallMat);
+  addBox(21.8, 0.28, 7.8, -36.5, 4.68, 0, ceilingMat);
+
+  const entranceFrameMat = new THREE.MeshStandardMaterial({ color: 0xb9c4c9, roughness: 0.55 });
+  addBox(0.42, 4.8, 0.42, -25.9, 2.4, -3.85, entranceFrameMat, false);
+  addBox(0.42, 4.8, 0.42, -25.9, 2.4, 3.85, entranceFrameMat, false);
+  addBox(0.42, 0.42, 8.1, -25.9, 4.62, 0, entranceFrameMat, false);
+
+  for (const x of [-30, -37, -43]) {
+    const tunnelLight = new THREE.PointLight(0xffe4ae, 0.75, 9);
+    tunnelLight.position.set(x, 3.85, 0);
+    museumGroup.add(tunnelLight);
+  }
 
   // Museum room, intentionally simple until the final player photos arrive.
   addBox(24, 0.2, 24, -57, 0.02, 0, floorMat, false);
@@ -1129,6 +1143,7 @@ function unlockTrainingFreeMode() {
   if (multiplayerMode || trainingFreeMode) return;
   trainingFreeMode = true;
   if (museumGroup) museumGroup.visible = true;
+  if (trainingTunnelSeal) trainingTunnelSeal.visible = false;
   goalBanner.textContent = "MODO LIBRE DESBLOQUEADO";
   goalBanner.classList.remove("show");
   void goalBanner.offsetWidth;
@@ -1479,18 +1494,36 @@ function addField({ trainingMode = false } = {}) {
   };
 
   const addSideStand = (x, side) => {
-    const apronWall = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.35, field.length + 24), standBaseMat);
-    apronWall.position.set(side * (field.width / 2 + 4.25), 0.68, 0);
-    scene.add(apronWall);
+    const hasTrainingTunnel = trainingMode && side < 0;
+    const sideWallX = side * (field.width / 2 + 4.25);
+    const addSideSegment = (width, height, depth, segmentX, segmentY, segmentZ, material) => {
+      const segment = new THREE.Mesh(new THREE.BoxGeometry(width, height, depth), material);
+      segment.position.set(segmentX, segmentY, segmentZ);
+      scene.add(segment);
+    };
+    if (hasTrainingTunnel) {
+      const segmentDepth = (field.length + 24 - 8) / 2;
+      const segmentOffset = 4 + segmentDepth / 2;
+      addSideSegment(0.8, 1.35, segmentDepth, sideWallX, 0.68, -segmentOffset, standBaseMat);
+      addSideSegment(0.8, 1.35, segmentDepth, sideWallX, 0.68, segmentOffset, standBaseMat);
+    } else {
+      addSideSegment(0.8, 1.35, field.length + 24, sideWallX, 0.68, 0, standBaseMat);
+    }
 
     for (let row = 0; row < 13; row += 1) {
       const y = 1.15 + row * 0.34;
       const rowX = side * (field.width / 2 + 5.4 + row * 0.74);
-      const tread = new THREE.Mesh(new THREE.BoxGeometry(0.88, 0.16, field.length + 22), stepMat);
-      tread.position.set(rowX, y - 0.17, 0);
-      scene.add(tread);
+      if (hasTrainingTunnel) {
+        const treadDepth = (field.length + 22 - 8) / 2;
+        const treadOffset = 4 + treadDepth / 2;
+        addSideSegment(0.88, 0.16, treadDepth, rowX, y - 0.17, -treadOffset, stepMat);
+        addSideSegment(0.88, 0.16, treadDepth, rowX, y - 0.17, treadOffset, stepMat);
+      } else {
+        addSideSegment(0.88, 0.16, field.length + 22, rowX, y - 0.17, 0, stepMat);
+      }
 
       for (let z = -32; z <= 32; z += 8) {
+        if (hasTrainingTunnel && Math.abs(z) < 4) continue;
         const mat = Math.floor((z + 32) / 8) % 2 === 0 ? blueSeat : redSeat;
         addSeatBlock(rowX, z, 0.46, 6.3, mat, 0, y);
       }
@@ -1536,9 +1569,19 @@ function addField({ trainingMode = false } = {}) {
   const backWallE = new THREE.Mesh(new THREE.BoxGeometry(1, 8, field.length + 32), wallMat);
   backWallE.position.set(field.width / 2 + 15, 4, 0);
   scene.add(backWallE);
-  const backWallW = backWallE.clone();
-  backWallW.position.x = -field.width / 2 - 15;
-  scene.add(backWallW);
+  if (trainingMode) {
+    const wallDepth = (field.length + 32 - 8) / 2;
+    const wallOffset = 4 + wallDepth / 2;
+    for (const z of [-wallOffset, wallOffset]) {
+      const backWallW = new THREE.Mesh(new THREE.BoxGeometry(1, 8, wallDepth), wallMat);
+      backWallW.position.set(-field.width / 2 - 15, 4, z);
+      scene.add(backWallW);
+    }
+  } else {
+    const backWallW = backWallE.clone();
+    backWallW.position.x = -field.width / 2 - 15;
+    scene.add(backWallW);
+  }
 
   const upperRingMat = new THREE.MeshBasicMaterial({ color: 0x26333b });
   const upperRingN = new THREE.Mesh(new THREE.BoxGeometry(field.width + 44, 1.1, 1.1), upperRingMat);
@@ -2210,6 +2253,7 @@ function setupGame() {
   trainingFreeMode = false;
   trainingWorldColliders = [];
   museumGroup = null;
+  trainingTunnelSeal = null;
   addField({ trainingMode: !multiplayerMode });
 
   const localRoomPlayer = getLocalRoomPlayer();
@@ -3084,7 +3128,7 @@ function updateBall(dt) {
 
   const ballRadius = 0.42;
   const freeTraining = !multiplayerMode && trainingFreeMode;
-  const minX = freeTraining ? -68 + ballRadius : -field.width / 2 + ballRadius;
+  const minX = freeTraining ? -70 + ballRadius : -field.width / 2 + ballRadius;
   const maxX = freeTraining ? field.width / 2 + 13 - ballRadius : field.width / 2 - ballRadius;
   const minZ = freeTraining ? -49 + ballRadius : -field.length / 2 + ballRadius;
   const maxZ = freeTraining ? 49 - ballRadius : field.length / 2 - ballRadius;

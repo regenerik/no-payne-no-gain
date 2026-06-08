@@ -577,6 +577,23 @@ la versión multijugador actual.
 - Antes de llegar a los 20 goles, el museo permanece oculto e inaccesible.
 
 
+30. TUNEL REAL Y ACCESO CONTINUO AL MUSEO
+
+- Se reemplazo la falsa boca negra que quedaba delante de una grada cerrada.
+- La tribuna lateral de entrenamiento ahora tiene una abertura real que
+  atraviesa pared baja, asientos, escalones y muro exterior.
+- La tapa oscura permanece discreta antes de desbloquear el Modo libre y
+  desaparece al alcanzar los 20 goles.
+- Detras de la entrada se construyo un corredor transitable con piso,
+  paredes, techo, marco e iluminacion propia.
+- El corredor queda alineado de forma continua con la abertura central del
+  museo, sin geometria de la grada bloqueando el recorrido.
+- Se mantuvieron colisiones laterales para que el jugador y la pelota no
+  atraviesen las paredes durante la exploracion.
+- El cambio sigue perteneciendo exclusivamente al mapa de entrenamiento y
+  no modifica las tribunas ni la cancha multijugador.
+
+
 Este proyecto comenzó como una pequeña broma futbolera protagonizada por
 Tim Payne y terminó convirtiéndose en un juego online completo, con una
 cantidad bastante gloriosa de detalles, reglas, cámaras, sonidos, tribunas,
