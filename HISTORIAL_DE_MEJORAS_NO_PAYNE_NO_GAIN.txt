@@ -594,6 +594,31 @@ la versión multijugador actual.
   no modifica las tribunas ni la cancha multijugador.
 
 
+31. MUSEO SUBTERRANEO Y DESCENSO VISITABLE
+
+- La entrada fue redisenada con marco metalico ancho, dintel oscuro, escudo
+  y una abertura integrada entre los asientos de la tribuna.
+- Tras desbloquear el Modo libre, la tapa negra desaparece y revela una
+  escalera de 28 tramos que desciende desde la cancha.
+- El suelo del jugador cambia de altura progresivamente desde nivel cero
+  hasta 6,4 metros bajo el campo.
+- La camara de tercera persona se adapta automaticamente dentro del tunel
+  para evitar quedar por encima del techo.
+- Se abrieron huecos reales en el borde verde y en el terreno exterior para
+  que ningun plano tape visualmente el descenso.
+- El tunel incorpora paredes oscuras, techo, pasamanos, luminarias y un
+  descanso inferior conectado a la sala.
+- El museo fue ampliado y ambientado con franja roja, seis cuadros
+  placeholder, placas, bancos, escudo central y dos vitrinas con trofeos.
+- La pelota reconoce tambien el nivel subterraneo, puede bajar por el acceso
+  y queda apoyada sobre el piso del museo.
+- Se corrigio la colision de los techos para que no funcionen como paredes
+  invisibles delante del jugador.
+- Se realizo una prueba automatizada caminando desde la cancha hasta el
+  fondo del museo: el recorrido llego desde x = -17 hasta x = -74,07 y
+  descendio correctamente hasta y = -6,4 sin errores de ejecucion.
+
+
 Este proyecto comenzó como una pequeña broma futbolera protagonizada por
 Tim Payne y terminó convirtiéndose en un juego online completo, con una
 cantidad bastante gloriosa de detalles, reglas, cámaras, sonidos, tribunas,

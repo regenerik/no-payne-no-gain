@@ -153,6 +153,9 @@ let trainingFreeMode = false;
 let trainingWorldColliders = [];
 let museumGroup = null;
 let trainingTunnelSeal = null;
+const trainingMuseumFloorY = -6.4;
+const trainingTunnelStartX = -28;
+const trainingTunnelEndX = -48;
 let opponents = [];
 let multiplayerActors = [];
 let playerTags = [];
@@ -921,6 +924,32 @@ function constrainSpectatorToStands(unit) {
   }
 }
 
+function getTrainingExplorerFloorY(x, z) {
+  if (multiplayerMode || !trainingFreeMode) return 0;
+  const insidePassage = Math.abs(z) <= 3.55;
+  if (!insidePassage || x > trainingTunnelStartX) return 0;
+  if (x >= trainingTunnelEndX) {
+    const progress = THREE.MathUtils.clamp(
+      (trainingTunnelStartX - x) / (trainingTunnelStartX - trainingTunnelEndX),
+      0,
+      1
+    );
+    return trainingMuseumFloorY * progress;
+  }
+  if (x >= -75 && Math.abs(z) <= 11.5) return trainingMuseumFloorY;
+  return 0;
+}
+
+function applyPlayerGroundHeight(moving = false, kickoffTaker = false) {
+  const floorY = getTrainingExplorerFloorY(player.position.x, player.position.z);
+  if (kickoffTaker) {
+    player.position.y = THREE.MathUtils.lerp(player.position.y, floorY, 0.18);
+    return;
+  }
+  const bob = moving ? Math.abs(Math.sin(performance.now() * 0.014)) * 0.08 : 0;
+  player.position.y = THREE.MathUtils.lerp(player.position.y, floorY + bob, 0.42);
+}
+
 function constrainTrainingExplorer(unit) {
   if (multiplayerMode || !trainingFreeMode) {
     unit.position.x = THREE.MathUtils.clamp(unit.position.x, -field.width / 2 + 2, field.width / 2 - 2);
@@ -928,12 +957,8 @@ function constrainTrainingExplorer(unit) {
     return;
   }
 
-  unit.position.x = THREE.MathUtils.clamp(unit.position.x, -68.1, field.width / 2 + 13);
+  unit.position.x = THREE.MathUtils.clamp(unit.position.x, -75.2, field.width / 2 + 13);
   unit.position.z = THREE.MathUtils.clamp(unit.position.z, -49, 49);
-  // The west side only opens through the discreet central tunnel.
-  if (unit.position.x < -field.width / 2 - 1 && Math.abs(unit.position.z) > 3.35) {
-    unit.position.x = -field.width / 2 - 1;
-  }
   resolveTrainingPlayerWorldCollisions(unit);
 }
 
@@ -968,6 +993,7 @@ function resolveTrainingPlayerWorldCollisions(unit) {
   const radius = 0.72;
   for (const box of trainingWorldColliders) {
     if (unit.position.y > box.max.y + 0.5) continue;
+    if (unit.position.y + 3.15 < box.min.y) continue;
     const closestX = THREE.MathUtils.clamp(unit.position.x, box.min.x, box.max.x);
     const closestZ = THREE.MathUtils.clamp(unit.position.z, box.min.z, box.max.z);
     const dx = unit.position.x - closestX;
@@ -1055,15 +1081,27 @@ function createKickArrow() {
 function addTrainingMuseum() {
   museumGroup = new THREE.Group();
   museumGroup.name = "trainingMuseum";
-  const wallMat = new THREE.MeshStandardMaterial({ color: 0x20282c, roughness: 0.86 });
-  const floorMat = new THREE.MeshStandardMaterial({ color: 0x384148, roughness: 0.75 });
-  const ceilingMat = new THREE.MeshStandardMaterial({ color: 0x151b1e, roughness: 0.9 });
-  const frameMat = new THREE.MeshStandardMaterial({ color: 0xb58a48, roughness: 0.5 });
-  const placeholderColors = [0x1f6a45, 0x274f88, 0x8b3447, 0x6c4a8e, 0x98752d, 0x376c74];
-  const addBox = (w, h, d, x, y, z, material = wallMat, collidable = true) => {
+  const wallMat = new THREE.MeshStandardMaterial({ color: 0x15191c, roughness: 0.88 });
+  const darkWallMat = new THREE.MeshBasicMaterial({ color: 0x111619 });
+  const floorMat = new THREE.MeshBasicMaterial({ color: 0x202427 });
+  const stepMat = new THREE.MeshBasicMaterial({ color: 0x252a2e });
+  const ceilingMat = new THREE.MeshBasicMaterial({ color: 0x0b0e10 });
+  const frameMat = new THREE.MeshStandardMaterial({ color: 0x090b0c, roughness: 0.55 });
+  const silverMat = new THREE.MeshStandardMaterial({ color: 0xc5cbce, metalness: 0.35, roughness: 0.42 });
+  const redAccentMat = new THREE.MeshStandardMaterial({ color: 0x9f263a, roughness: 0.66 });
+  const glassMat = new THREE.MeshStandardMaterial({
+    color: 0xbfe5ef,
+    transparent: true,
+    opacity: 0.2,
+    metalness: 0.05,
+    roughness: 0.16,
+    side: THREE.DoubleSide,
+  });
+  const goldMat = new THREE.MeshStandardMaterial({ color: 0xd8ad42, metalness: 0.72, roughness: 0.26 });
+  const addBox = (w, h, d, x, y, z, material = wallMat, collidable = true, parent = museumGroup) => {
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), material);
     mesh.position.set(x, y, z);
-    museumGroup.add(mesh);
+    parent.add(mesh);
     if (collidable) trainingWorldColliders.push(new THREE.Box3().setFromObject(mesh));
     return mesh;
   };
@@ -1074,6 +1112,47 @@ function addTrainingMuseum() {
     ));
   };
 
+  const createShield = (material, scale = 1) => {
+    const shape = new THREE.Shape();
+    shape.moveTo(-0.72, 0.85);
+    shape.lineTo(0.72, 0.85);
+    shape.lineTo(0.66, 0.08);
+    shape.quadraticCurveTo(0.55, -0.68, 0, -1.02);
+    shape.quadraticCurveTo(-0.55, -0.68, -0.66, 0.08);
+    shape.closePath();
+    const shield = new THREE.Mesh(new THREE.ShapeGeometry(shape), material);
+    shield.scale.setScalar(scale);
+    return shield;
+  };
+  const createPortraitTexture = (shirtColor, accentColor) => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 256;
+    canvas.height = 384;
+    const ctx = canvas.getContext("2d");
+    const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+    gradient.addColorStop(0, "#1a2328");
+    gradient.addColorStop(1, "#29683d");
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "#d9b77b";
+    ctx.fillRect(104, 74, 48, 60);
+    ctx.fillStyle = "#171717";
+    ctx.fillRect(98, 61, 60, 25);
+    ctx.fillStyle = shirtColor;
+    ctx.fillRect(73, 132, 110, 132);
+    ctx.fillStyle = accentColor;
+    ctx.fillRect(118, 132, 20, 132);
+    ctx.fillStyle = "#dedede";
+    ctx.fillRect(57, 145, 18, 115);
+    ctx.fillRect(181, 145, 18, 115);
+    ctx.fillStyle = "#151b20";
+    ctx.fillRect(89, 264, 31, 92);
+    ctx.fillRect(136, 264, 31, 92);
+    ctx.fillStyle = "rgba(255,255,255,0.18)";
+    ctx.fillRect(0, 330, canvas.width, 54);
+    return new THREE.CanvasTexture(canvas);
+  };
+
   // Stadium surfaces become physical only when free mode starts.
   addInvisibleCollider(field.width / 2 + 3.7, 0, -50, field.width / 2 + 15, 9, 50);
   addInvisibleCollider(-field.width / 2 - 15, 0, -50, -field.width / 2 - 3.7, 9, -3.6);
@@ -1081,58 +1160,158 @@ function addTrainingMuseum() {
   addInvisibleCollider(-field.width / 2 - 4, 0, field.length / 2 + 3.7, field.width / 2 + 4, 9, field.length / 2 + 15);
   addInvisibleCollider(-field.width / 2 - 4, 0, -field.length / 2 - 15, field.width / 2 + 4, 9, -field.length / 2 - 3.7);
 
-  // A real passage crosses the carved opening in the west stand.
+  // The facade stays visible from the pitch, while the dark seal hides the secret.
+  const facade = new THREE.Group();
+  facade.name = "trainingMuseumFacade";
+  addBox(1.1, 5.2, 0.62, -25.55, 2.6, -4.15, silverMat, false, facade);
+  addBox(1.1, 5.2, 0.62, -25.55, 2.6, 4.15, silverMat, false, facade);
+  addBox(1.1, 0.65, 8.9, -25.55, 4.88, 0, silverMat, false, facade);
+  addBox(1.0, 1.15, 8.2, -25.72, 4.15, 0, darkWallMat, false, facade);
+  const facadeShield = createShield(new THREE.MeshBasicMaterial({ color: 0xf2f5f4 }), 0.62);
+  facadeShield.rotation.y = Math.PI / 2;
+  facadeShield.position.set(-25.08, 4.28, 0);
+  facade.add(facadeShield);
+  scene.add(facade);
+
   trainingTunnelSeal = new THREE.Mesh(
-    new THREE.BoxGeometry(0.38, 4.45, 7.3),
+    new THREE.BoxGeometry(0.42, 4.2, 7.45),
     new THREE.MeshBasicMaterial({ color: 0x010202 })
   );
-  trainingTunnelSeal.position.set(-25.72, 2.22, 0);
+  trainingTunnelSeal.position.set(-25.86, 2.1, 0);
   scene.add(trainingTunnelSeal);
 
-  addBox(21.8, 0.2, 7.2, -36.5, 0.04, 0, floorMat, false);
-  addBox(21.8, 4.7, 0.34, -36.5, 2.35, -3.75, wallMat);
-  addBox(21.8, 4.7, 0.34, -36.5, 2.35, 3.75, wallMat);
-  addBox(21.8, 0.28, 7.8, -36.5, 4.68, 0, ceilingMat);
+  // Entrance landing and a long stairway descending six metres underground.
+  addBox(2.4, 0.18, 7.5, -26.8, -0.08, 0, floorMat, false);
+  const stairCount = 28;
+  const stairLength = (trainingTunnelStartX - trainingTunnelEndX) / stairCount;
+  for (let index = 0; index < stairCount; index += 1) {
+    const progress = (index + 1) / stairCount;
+    const topY = trainingMuseumFloorY * progress;
+    const x = trainingTunnelStartX - (index + 0.5) * stairLength;
+    addBox(stairLength + 0.035, 0.18, 7.25, x, topY - 0.09, 0, stepMat, false);
+  }
+  addBox(3.2, 0.2, 7.3, -49.5, trainingMuseumFloorY - 0.1, 0, floorMat, false);
 
-  const entranceFrameMat = new THREE.MeshStandardMaterial({ color: 0xb9c4c9, roughness: 0.55 });
-  addBox(0.42, 4.8, 0.42, -25.9, 2.4, -3.85, entranceFrameMat, false);
-  addBox(0.42, 4.8, 0.42, -25.9, 2.4, 3.85, entranceFrameMat, false);
-  addBox(0.42, 0.42, 8.1, -25.9, 4.62, 0, entranceFrameMat, false);
+  const tunnelCenterY = (4.7 + trainingMuseumFloorY) / 2;
+  const tunnelWallHeight = 4.7 - trainingMuseumFloorY;
+  addBox(23.7, tunnelWallHeight, 0.42, -37.9, tunnelCenterY, -3.85, darkWallMat);
+  addBox(23.7, tunnelWallHeight, 0.42, -37.9, tunnelCenterY, 3.85, darkWallMat);
+  addBox(23.7, 0.32, 8.1, -37.9, 4.62, 0, ceilingMat);
 
-  for (const x of [-30, -37, -43]) {
-    const tunnelLight = new THREE.PointLight(0xffe4ae, 0.75, 9);
-    tunnelLight.position.set(x, 3.85, 0);
-    museumGroup.add(tunnelLight);
+  // Low handrails follow the descent without blocking the view.
+  const railMat = new THREE.MeshStandardMaterial({ color: 0x626b70, metalness: 0.38, roughness: 0.42 });
+  for (let index = 0; index < 10; index += 1) {
+    const progress = index / 9;
+    const x = THREE.MathUtils.lerp(trainingTunnelStartX - 0.5, trainingTunnelEndX + 0.7, progress);
+    const floorY = THREE.MathUtils.lerp(0, trainingMuseumFloorY, progress);
+    for (const z of [-3.25, 3.25]) {
+      addBox(0.14, 1.2, 0.14, x, floorY + 0.6, z, railMat, false);
+    }
   }
 
-  // Museum room, intentionally simple until the final player photos arrive.
-  addBox(24, 0.2, 24, -57, 0.02, 0, floorMat, false);
-  addBox(24, 5.4, 0.4, -57, 2.7, -12, wallMat);
-  addBox(24, 5.4, 0.4, -57, 2.7, 12, wallMat);
-  addBox(0.4, 5.4, 24, -69, 2.7, 0, wallMat);
-  addBox(0.4, 5.4, 8, -45, 2.7, -8, wallMat);
-  addBox(0.4, 5.4, 8, -45, 2.7, 8, wallMat);
-  addBox(24, 0.3, 24, -57, 5.25, 0, wallMat);
-
-  for (let i = 0; i < 6; i += 1) {
-    const z = -9 + i * 3.6;
-    addBox(0.26, 3.0, 2.55, -68.72, 2.65, z, frameMat, false);
-    const placeholder = addBox(
-      0.28,
-      2.55,
-      2.12,
-      -68.55,
-      2.65,
-      z,
-      new THREE.MeshBasicMaterial({ color: placeholderColors[i], side: THREE.DoubleSide }),
-      false
+  for (const x of [-30, -35, -40, -45]) {
+    const progress = THREE.MathUtils.clamp(
+      (trainingTunnelStartX - x) / (trainingTunnelStartX - trainingTunnelEndX),
+      0,
+      1
     );
-    placeholder.userData.museumFrame = i;
+    const floorY = trainingMuseumFloorY * progress;
+    const tunnelLight = new THREE.PointLight(0xffefd0, 0.48, 9);
+    tunnelLight.position.set(x, floorY + 3.35, 0);
+    museumGroup.add(tunnelLight);
+    addBox(0.16, 0.46, 1.25, x, floorY + 2.75, -3.56, silverMat, false);
+    addBox(0.16, 0.46, 1.25, x, floorY + 2.75, 3.56, silverMat, false);
   }
 
-  for (const x of [-62, -54, -48]) {
-    const light = new THREE.PointLight(0xfff0cf, 1.05, 13);
-    light.position.set(x, 4.35, 0);
+  // Underground gallery with portraits, benches and trophy displays.
+  const museumCenterX = -62;
+  const museumWallCenterY = trainingMuseumFloorY + 2.8;
+  addBox(26, 0.22, 24, museumCenterX, trainingMuseumFloorY - 0.11, 0, floorMat, false);
+  addBox(26, 5.8, 0.42, museumCenterX, museumWallCenterY, -12, wallMat);
+  addBox(26, 5.8, 0.42, museumCenterX, museumWallCenterY, 12, wallMat);
+  addBox(0.42, 5.8, 24, -75, museumWallCenterY, 0, wallMat);
+  addBox(0.42, 5.8, 8, -49, museumWallCenterY, -8, wallMat);
+  addBox(0.42, 5.8, 8, -49, museumWallCenterY, 8, wallMat);
+  addBox(26, 0.34, 24, museumCenterX, trainingMuseumFloorY + 5.72, 0, ceilingMat);
+
+  addBox(25.4, 0.28, 0.24, museumCenterX, trainingMuseumFloorY + 2.1, -11.72, redAccentMat, false);
+  addBox(25.4, 0.28, 0.24, museumCenterX, trainingMuseumFloorY + 2.1, 11.72, redAccentMat, false);
+  addBox(0.24, 0.28, 23.4, -74.72, trainingMuseumFloorY + 2.1, 0, redAccentMat, false);
+
+  const portraitColors = [
+    ["#2058b6", "#ffffff"],
+    ["#151515", "#ffffff"],
+    ["#c22b3e", "#ffffff"],
+    ["#e0c82d", "#23632e"],
+    ["#eeeeee", "#9f263a"],
+    ["#2444a7", "#b1294b"],
+  ];
+  const portraitXs = [-69.2, -64.7, -60.2, -55.7, -51.7, -73.3];
+  for (let i = 0; i < 6; i += 1) {
+    const side = i < 3 ? -1 : 1;
+    const x = portraitXs[i];
+    const z = side * 11.72;
+    addBox(3.15, 3.85, 0.2, x, trainingMuseumFloorY + 3.2, z, frameMat, false);
+    const portrait = new THREE.Mesh(
+      new THREE.PlaneGeometry(2.72, 3.42),
+      new THREE.MeshBasicMaterial({
+        map: createPortraitTexture(...portraitColors[i]),
+        side: THREE.DoubleSide,
+      })
+    );
+    portrait.position.set(x, trainingMuseumFloorY + 3.2, z - side * 0.12);
+    portrait.rotation.y = side < 0 ? 0 : Math.PI;
+    portrait.userData.museumFrame = i;
+    museumGroup.add(portrait);
+    addBox(1.65, 0.28, 0.12, x, trainingMuseumFloorY + 1.05, z - side * 0.17, silverMat, false);
+  }
+
+  const backShield = createShield(new THREE.MeshBasicMaterial({ color: 0xf7f7f2 }), 1.28);
+  backShield.rotation.y = Math.PI / 2;
+  backShield.position.set(-74.66, trainingMuseumFloorY + 3.4, 0);
+  museumGroup.add(backShield);
+  addBox(0.18, 0.32, 2.2, -74.5, trainingMuseumFloorY + 1.78, 0, silverMat, false);
+
+  const addBench = (x, z, rotation = 0) => {
+    const bench = new THREE.Group();
+    const seat = new THREE.Mesh(new THREE.BoxGeometry(5.2, 0.32, 1.35), darkWallMat);
+    seat.position.y = 1.02;
+    bench.add(seat);
+    for (const legX of [-2.1, 2.1]) {
+      const leg = new THREE.Mesh(new THREE.BoxGeometry(0.32, 1.0, 1.08), silverMat);
+      leg.position.set(legX, 0.5, 0);
+      bench.add(leg);
+    }
+    bench.position.set(x, trainingMuseumFloorY, z);
+    bench.rotation.y = rotation;
+    museumGroup.add(bench);
+    trainingWorldColliders.push(new THREE.Box3().setFromObject(bench));
+  };
+  addBench(-65, -4.3);
+  addBench(-57, 4.3);
+
+  const addTrophyCase = (x, z, sphere = false) => {
+    addBox(2.5, 1.15, 2.5, x, trainingMuseumFloorY + 0.58, z, frameMat);
+    addBox(2.7, 3.0, 2.7, x, trainingMuseumFloorY + 2.55, z, glassMat, true);
+    if (sphere) {
+      const ballDisplay = new THREE.Mesh(new THREE.SphereGeometry(0.72, 18, 14), goldMat);
+      ballDisplay.position.set(x, trainingMuseumFloorY + 2.1, z);
+      museumGroup.add(ballDisplay);
+    } else {
+      const cupBowl = new THREE.Mesh(new THREE.CylinderGeometry(0.48, 0.28, 0.85, 16), goldMat);
+      cupBowl.position.set(x, trainingMuseumFloorY + 2.15, z);
+      museumGroup.add(cupBowl);
+      const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.13, 0.55, 12), goldMat);
+      stem.position.set(x, trainingMuseumFloorY + 1.5, z);
+      museumGroup.add(stem);
+    }
+  };
+  addTrophyCase(-71.5, -7.8, true);
+  addTrophyCase(-53, 7.8, false);
+
+  for (const x of [-71, -65, -59, -53]) {
+    const light = new THREE.PointLight(0xffefd2, 0.52, 10);
+    light.position.set(x, trainingMuseumFloorY + 4.75, 0);
     museumGroup.add(light);
   }
   museumGroup.visible = false;
@@ -1152,13 +1331,22 @@ function unlockTrainingFreeMode() {
 }
 
 function addField({ trainingMode = false } = {}) {
-  const cityGround = new THREE.Mesh(
-    new THREE.PlaneGeometry(180, 210),
-    new THREE.MeshBasicMaterial({ color: 0x203526 })
-  );
-  cityGround.rotation.x = -Math.PI / 2;
-  cityGround.position.y = -0.09;
-  scene.add(cityGround);
+  const cityGroundMat = new THREE.MeshBasicMaterial({ color: 0x203526 });
+  const addGroundPlane = (width, depth, x, z, y = -0.09) => {
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(width, depth), cityGroundMat);
+    ground.rotation.x = -Math.PI / 2;
+    ground.position.set(x, y, z);
+    scene.add(ground);
+  };
+  if (trainingMode) {
+    // Leave a real opening over the stairway and underground museum.
+    addGroundPlane(180, 92, 0, -59);
+    addGroundPlane(180, 92, 0, 59);
+    addGroundPlane(115, 26, 32.5, 0);
+    addGroundPlane(14, 26, -83, 0);
+  } else {
+    addGroundPlane(180, 210, 0, 0);
+  }
 
   const asphaltMat = new THREE.MeshBasicMaterial({ color: 0x252b2e });
   const roadMat = new THREE.MeshBasicMaterial({ color: 0x171c1f });
@@ -1287,13 +1475,18 @@ function addField({ trainingMode = false } = {}) {
   addBuilding(-38, -103, 24, 10, 8, 1);
   addBuilding(34, 103, 30, 10, 10, 2);
 
-  const apron = new THREE.Mesh(
-    new THREE.PlaneGeometry(field.width + 24, field.length + 24),
-    new THREE.MeshBasicMaterial({ color: 0x14682d })
-  );
-  apron.rotation.x = -Math.PI / 2;
-  apron.position.y = -0.012;
-  scene.add(apron);
+  const apronMat = new THREE.MeshBasicMaterial({ color: 0x14682d });
+  if (trainingMode) {
+    const apronWidth = field.width + 24;
+    const apronDepth = field.length + 24;
+    const sideDepth = (apronDepth - 9) / 2;
+    const sideOffset = 4.5 + sideDepth / 2;
+    addFlatArea(apronWidth, sideDepth, 0, -sideOffset, apronMat);
+    addFlatArea(apronWidth, sideDepth, 0, sideOffset, apronMat);
+    addFlatArea(apronWidth - 9, 9, 4.5, 0, apronMat);
+  } else {
+    addFlatArea(field.width + 24, field.length + 24, 0, 0, apronMat);
+  }
 
   const grass = new THREE.Mesh(
     new THREE.PlaneGeometry(field.width, field.length),
@@ -3016,7 +3209,7 @@ function updateControlledBall(owner, dt, minX, maxX, minZ, maxZ) {
   const runPulse = owner === player ? Math.sin(performance.now() * 0.018) * 0.16 : 0;
   const carryDistance = owner === player ? 2.05 + runPulse : 1.42;
   const target = owner.position.clone().addScaledVector(carryDir, carryDistance);
-  target.y = 0.42;
+  target.y = getTrainingExplorerFloorY(target.x, target.z) + 0.42;
   const before = ball.position.clone();
   ball.position.lerp(target, 1 - Math.pow(owner === player ? 0.00025 : 0.0008, dt));
   ball.position.x = THREE.MathUtils.clamp(ball.position.x, minX, maxX);
@@ -3128,7 +3321,7 @@ function updateBall(dt) {
 
   const ballRadius = 0.42;
   const freeTraining = !multiplayerMode && trainingFreeMode;
-  const minX = freeTraining ? -70 + ballRadius : -field.width / 2 + ballRadius;
+  const minX = freeTraining ? -75.4 + ballRadius : -field.width / 2 + ballRadius;
   const maxX = freeTraining ? field.width / 2 + 13 - ballRadius : field.width / 2 - ballRadius;
   const minZ = freeTraining ? -49 + ballRadius : -field.length / 2 + ballRadius;
   const maxZ = freeTraining ? 49 - ballRadius : field.length / 2 - ballRadius;
@@ -3185,8 +3378,9 @@ function updateBall(dt) {
 
   ballVerticalVelocity -= 9.8 * dt;
   ball.position.y += ballVerticalVelocity * dt;
-  if (ball.position.y <= 0.42) {
-    ball.position.y = 0.42;
+  const ballFloorY = getTrainingExplorerFloorY(ball.position.x, ball.position.z) + 0.42;
+  if (ball.position.y <= ballFloorY) {
+    ball.position.y = ballFloorY;
     ballVerticalVelocity = 0;
   }
 
@@ -3220,9 +3414,10 @@ function updateBall(dt) {
 
 function updateBallShadow() {
   if (!ballShadow || !ball) return;
-  const height = Math.max(0, ball.position.y - 0.42);
+  const floorY = getTrainingExplorerFloorY(ball.position.x, ball.position.z);
+  const height = Math.max(0, ball.position.y - floorY - 0.42);
   const scale = 1 + Math.min(height * 0.22, 1.05);
-  ballShadow.position.set(ball.position.x, 0.035, ball.position.z);
+  ballShadow.position.set(ball.position.x, floorY + 0.035, ball.position.z);
   ballShadow.scale.set(scale, scale, scale);
   ballShadow.material.opacity = THREE.MathUtils.clamp(0.34 - height * 0.055, 0.08, 0.34);
   ballShadow.visible = ball.visible;
@@ -3240,7 +3435,11 @@ function updateKickArrow() {
   kickArrow.visible = inRange;
   if (!inRange) return;
 
-  kickArrow.position.set(ball.position.x, 0.045, ball.position.z);
+  kickArrow.position.set(
+    ball.position.x,
+    getTrainingExplorerFloorY(ball.position.x, ball.position.z) + 0.045,
+    ball.position.z
+  );
   kickArrow.rotation.y = Math.atan2(dir.x, dir.z);
   const scale = THREE.MathUtils.clamp(distance / 2.1, 0.72, 1.28);
   kickArrow.scale.set(scale, scale, scale);
@@ -3371,7 +3570,7 @@ function updatePlayer(dt) {
       constrainTrainingExplorer(player);
       playerAngle = Math.atan2(touchDir.x, touchDir.z);
       playerMoveDir.copy(touchDir);
-      player.position.y = kickoffTaker ? THREE.MathUtils.lerp(player.position.y, 0, 0.18) : Math.abs(Math.sin(performance.now() * 0.014)) * 0.08;
+      applyPlayerGroundHeight(true, kickoffTaker);
       player.rotation.y = playerAngle;
       animatePlayerRun(player, dt, !kickoffTaker);
       constrainUnitToKickoffHalf(player);
@@ -3391,10 +3590,10 @@ function updatePlayer(dt) {
       if (!kickoffTaker) player.position.addScaledVector(forward, touchThrottle * 10.5 * analog * touchSprintMultiplier * dt);
       playerMoveDir.copy(forward).multiplyScalar(Math.sign(touchThrottle)).normalize();
       constrainTrainingExplorer(player);
-      player.position.y = kickoffTaker ? THREE.MathUtils.lerp(player.position.y, 0, 0.18) : Math.abs(Math.sin(performance.now() * 0.014)) * 0.08;
+      applyPlayerGroundHeight(true, kickoffTaker);
     } else {
       playerMoveDir.set(Math.sin(playerAngle), 0, Math.cos(playerAngle));
-      player.position.y = THREE.MathUtils.lerp(player.position.y, 0, 0.18);
+      applyPlayerGroundHeight(false, kickoffTaker);
     }
     player.rotation.y = playerAngle;
     animatePlayerRun(player, dt, !kickoffTaker && (Math.abs(touchThrottle) > 0.08 || Math.abs(touchTurn) > 0.08));
@@ -3417,12 +3616,12 @@ function updatePlayer(dt) {
       constrainTrainingExplorer(player);
       playerAngle = Math.atan2(screenDir.x, screenDir.z);
       playerMoveDir.copy(screenDir);
-      player.position.y = kickoffTaker ? THREE.MathUtils.lerp(player.position.y, 0, 0.18) : Math.abs(Math.sin(performance.now() * 0.014)) * 0.08;
+      applyPlayerGroundHeight(true, kickoffTaker);
       player.rotation.y = playerAngle;
       animatePlayerRun(player, dt, !kickoffTaker);
     } else {
       playerMoveDir.set(Math.sin(playerAngle), 0, Math.cos(playerAngle));
-      player.position.y = THREE.MathUtils.lerp(player.position.y, 0, 0.18);
+      applyPlayerGroundHeight(false, kickoffTaker);
       player.rotation.y = playerAngle;
       animatePlayerRun(player, dt, false);
     }
@@ -3448,10 +3647,10 @@ function updatePlayer(dt) {
     if (!kickoffTaker) player.position.addScaledVector(forward, throttle * 10.5 * sprintMultiplier * dt);
     playerMoveDir.copy(forward).multiplyScalar(throttle).normalize();
     constrainTrainingExplorer(player);
-    player.position.y = kickoffTaker ? THREE.MathUtils.lerp(player.position.y, 0, 0.18) : Math.abs(Math.sin(performance.now() * 0.014)) * 0.08;
+    applyPlayerGroundHeight(true, kickoffTaker);
   } else {
     playerMoveDir.set(Math.sin(playerAngle), 0, Math.cos(playerAngle));
-    player.position.y = THREE.MathUtils.lerp(player.position.y, 0, 0.18);
+    applyPlayerGroundHeight(false, kickoffTaker);
   }
 
   player.rotation.y = playerAngle;
@@ -3462,6 +3661,30 @@ function updatePlayer(dt) {
 }
 
 function updateCamera(dt) {
+  const insideTrainingMuseum = !multiplayerMode
+    && trainingFreeMode
+    && player.position.x < -26
+    && Math.abs(player.position.z) < 12.5;
+  if (insideTrainingMuseum) {
+    if (camera.fov !== 75) {
+      camera.fov = 75;
+      camera.updateProjectionMatrix();
+    }
+    const behind = new THREE.Vector3(
+      -Math.sin(playerAngle) * 7.1,
+      4.05,
+      -Math.cos(playerAngle) * 7.1
+    );
+    const desired = player.position.clone().add(behind);
+    camera.position.lerp(desired, 1 - Math.pow(0.0007, dt));
+    const look = player.position.clone().add(new THREE.Vector3(
+      Math.sin(playerAngle) * 2.1,
+      1.05,
+      Math.cos(playerAngle) * 2.1
+    ));
+    camera.lookAt(look);
+    return;
+  }
   if (cameraMode === "broadcast") {
     const portraitTouch = document.body.classList.contains("touch-enabled") && window.innerHeight > window.innerWidth;
     const targetFov = portraitTouch ? 68 : 58;
