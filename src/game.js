@@ -27,6 +27,7 @@ const playerNameDialog = document.querySelector("#playerNameDialog");
 const playerNameForm = document.querySelector("#playerNameForm");
 const playerNameDialogTitle = document.querySelector("#playerNameDialogTitle");
 const cancelPlayerNameBtn = document.querySelector("#cancelPlayerNameBtn");
+const createRoomFields = document.querySelector("#createRoomFields");
 const roomClosedDialog = document.querySelector("#roomClosedDialog");
 const roomClosedMessage = document.querySelector("#roomClosedMessage");
 const closeRoomNoticeBtn = document.querySelector("#closeRoomNoticeBtn");
@@ -47,7 +48,6 @@ const autoTeamsBtn = document.querySelector("#autoTeamsBtn");
 const randomTeamsBtn = document.querySelector("#randomTeamsBtn");
 const lockRoomBtn = document.querySelector("#lockRoomBtn");
 const resetTeamsBtn = document.querySelector("#resetTeamsBtn");
-const recordBtn = document.querySelector("#recordBtn");
 const copyLinkBtn = document.querySelector("#copyLinkBtn");
 const closeRoomOverlayBtn = document.querySelector("#closeRoomOverlayBtn");
 const leaveRoomBtn = document.querySelector("#leaveRoomBtn");
@@ -57,6 +57,7 @@ const roomUnlimitedToggle = document.querySelector("#roomUnlimitedToggle");
 const roomScoreInput = document.querySelector("#roomScoreInput");
 const roomProModeToggle = document.querySelector("#roomProModeToggle");
 const roomKeeperToggle = document.querySelector("#roomKeeperToggle");
+const roomSprintToggle = document.querySelector("#roomSprintToggle");
 const pickStadiumBtn = document.querySelector("#pickStadiumBtn");
 const timerEl = document.querySelector("#timer");
 const scoreEl = document.querySelector("#score");
@@ -67,6 +68,8 @@ const playerOverlay = document.querySelector("#playerOverlay");
 const chargeMeter = document.querySelector("#chargeMeter");
 const chargeFill = document.querySelector("#chargeFill");
 const chargeText = document.querySelector("#chargeText");
+const sprintMeter = document.querySelector("#sprintMeter");
+const sprintFill = document.querySelector("#sprintFill");
 const touchControls = document.querySelector("#touchControls");
 const touchJoystick = document.querySelector("#touchJoystick");
 const touchStick = document.querySelector("#touchStick");
@@ -83,7 +86,7 @@ let acknowledgedSpectatorSignature = "";
 const matchLength = 180;
 const field = { width: 42, length: 76 };
 const keys = new Set();
-const lines = [
+const trainingLines = [
   "Payne cambia de marcha",
   "La pelota firmo contrato con el gol",
   "El rival se acerca y reconsidera su vida",
@@ -91,6 +94,19 @@ const lines = [
   "Payne no corre: el pasto se mueve",
   "El arquero ya esta mirando al juez",
 ];
+const multiplayerLines = [
+  "La defensa acaba de presentar una queja formal",
+  "Ese pase tenia direccion postal",
+  "El cesped pide tiempo muerto",
+  "Alguien revise si la pelota tiene licencia",
+  "La tactica fue improvisar con absoluta confianza",
+  "El arquero esta actualizando el curriculum",
+  "Se juega como se puede y se festeja como se quiere",
+  "La tribuna vio algo. Nadie sabe exactamente que",
+  "El VAR decidio mirar para otro lado",
+  "Hay mas fe que marca personal",
+];
+const modePhrase = (trainingText, multiplayerText) => multiplayerMode ? multiplayerText : trainingText;
 const defaultServerUrl = "https://futbol-fun-server.onrender.com";
 const clientPlayerId = sessionStorage.getItem("npgClientId")
   || (crypto.randomUUID?.() || `player-${Date.now()}-${Math.random().toString(36).slice(2)}`);
@@ -205,7 +221,13 @@ let spectatorConfetti = [];
 let lastSpectatorConfettiAt = 0;
 let matchEndRoomTimer = 0;
 let pendingIdentityAction = null;
+let pendingIdentityNeedsRoom = false;
 const fullShotChargeSeconds = 0.416;
+const sprintDrainSeconds = 5;
+const sprintRechargeSeconds = 5;
+const sprintEmptyDelaySeconds = 2;
+let sprintEnergy = 1;
+let sprintRechargeDelay = 0;
 
 let celebrationRenderer;
 let celebrationScene;
@@ -358,6 +380,11 @@ function stopGameAudio() {
 function toggleMenuMusic() {
   setupAudio();
   menuMusicMuted = !menuMusicMuted;
+  if (!menuMusicMuted && menuMusicVolume <= 0.001) {
+    menuMusicVolume = 0.5;
+    menuMusic.volume = menuMusicVolume;
+    localStorage.setItem("npgMenuVolume", String(menuMusicVolume));
+  }
   updateMusicButton();
   if (menuMusicMuted) {
     stopAudio(menuMusic);
@@ -422,10 +449,12 @@ function getEnteredPlayerName() {
   return (playerNameInput?.value || "").trim().slice(0, 18);
 }
 
-function requestPlayerIdentity(title, action) {
+function requestPlayerIdentity(title, action, { includeRoom = false } = {}) {
   pendingIdentityAction = action;
+  pendingIdentityNeedsRoom = includeRoom;
   playerNameDialogTitle.textContent = title;
   playerNameInput.value = onlinePlayerName;
+  createRoomFields.hidden = !includeRoom;
   playerNameDialog.hidden = false;
   requestAnimationFrame(() => {
     playerNameInput.focus();
@@ -435,6 +464,8 @@ function requestPlayerIdentity(title, action) {
 
 function closePlayerIdentity() {
   pendingIdentityAction = null;
+  pendingIdentityNeedsRoom = false;
+  createRoomFields.hidden = true;
   playerNameDialog.hidden = true;
 }
 
@@ -586,8 +617,15 @@ async function connectOnlineServer() {
       updateSpectatorNotice();
       if (multiplayerMode) {
         const nextLocalTeam = room.players.find((roomPlayer) => roomPlayer.id === getLocalPlayerId())?.team;
-        if (nextLocalTeam !== "spectators") spectatorViewing = false;
+        if (nextLocalTeam === "spectators" && previousLocalTeam !== "spectators" && room.started) {
+          enterLiveSpectatorMode();
+        } else if (nextLocalTeam !== "spectators") {
+          spectatorViewing = false;
+        }
         syncMultiplayerTeamsToField({ preserveLocal: previousLocalTeam === nextLocalTeam });
+        if (room.matchState && previousLocalTeam !== nextLocalTeam) {
+          applyAuthoritativeSnapshot(room.matchState, true);
+        }
       }
     });
     socket.on("room:started", (room) => {
@@ -606,6 +644,7 @@ async function connectOnlineServer() {
       roomScoreInput.value = room.settings?.scoreLimit || 9;
       roomProModeToggle.checked = room.settings?.proMode === true;
       roomKeeperToggle.checked = room.settings?.keeperEnabled === true;
+      roomSprintToggle.checked = room.settings?.limitedSprint !== false;
       startGame({ multiplayer: true });
     });
     socket.on("room:ended", (room) => {
@@ -824,6 +863,7 @@ function createGoalkeeper(side = 1, team = "red") {
     targetZ: side * (field.length / 2 - 4.5),
     diveTimer: 0,
     diveSide: 1,
+    clearanceCooldown: 0,
   };
 }
 
@@ -1651,9 +1691,56 @@ function updateRemoteActors(dt) {
   });
 }
 
+function sprintIsLimited() {
+  if (!multiplayerMode) return true;
+  if (getLocalRoomPlayer()?.team === "spectators") return false;
+  return activeRoom?.settings?.limitedSprint !== false;
+}
+
+function sprintRequested() {
+  return touchSprintActive || keys.has("ShiftLeft");
+}
+
+function playerMovementRequested() {
+  if (touchMoveVector.lengthSq() >= 0.006) return true;
+  return keys.has("KeyW") || keys.has("ArrowUp")
+    || keys.has("KeyS") || keys.has("ArrowDown")
+    || keys.has("KeyA") || keys.has("ArrowLeft")
+    || keys.has("KeyD") || keys.has("ArrowRight");
+}
+
+function sprintActive() {
+  return sprintRequested()
+    && (!sprintIsLimited() || (sprintEnergy > 0 && sprintRechargeDelay <= 0));
+}
+
+function updateSprintState(dt) {
+  const limited = sprintIsLimited();
+  sprintMeter?.classList.toggle("is-visible", limited && player?.visible && !lobbyPreviewMode);
+  if (!limited) {
+    sprintEnergy = 1;
+    sprintRechargeDelay = 0;
+  } else {
+    const consuming = sprintRequested()
+      && playerMovementRequested()
+      && sprintEnergy > 0
+      && sprintRechargeDelay <= 0;
+    if (consuming) {
+      sprintEnergy = Math.max(0, sprintEnergy - dt / sprintDrainSeconds);
+      if (sprintEnergy <= 0) sprintRechargeDelay = sprintEmptyDelaySeconds;
+    } else if (sprintRechargeDelay > 0) {
+      sprintRechargeDelay = Math.max(0, sprintRechargeDelay - dt);
+    } else {
+      sprintEnergy = Math.min(1, sprintEnergy + dt / sprintRechargeSeconds);
+    }
+  }
+  if (sprintFill) sprintFill.style.transform = `scaleX(${THREE.MathUtils.clamp(sprintEnergy, 0, 1)})`;
+  sprintMeter?.classList.toggle("is-empty-delay", sprintRechargeDelay > 0);
+}
+
 function getLocalNetworkVelocity() {
   if (isKickoffTaker(player)) return new THREE.Vector3();
-  const sprintMultiplier = touchSprintActive || keys.has("ShiftLeft") ? 1.35 : 1;
+  const sprintMultiplier = sprintActive() ? 1.35 : 1;
   const baseSpeed = getLocalRoomPlayer()?.team === "spectators" ? 8.2 : 10.5;
   if (touchMoveVector.lengthSq() >= 0.006) {
     const analog = THREE.MathUtils.clamp(touchMoveVector.length(), 0.28, 1);
@@ -1687,6 +1774,7 @@ function emitLocalPlayerState() {
     vx: velocity.x,
     vz: velocity.z,
     jump: spectatorJumpQueued,
+    sprinting: sprintActive(),
   });
   spectatorJumpQueued = false;
 }
@@ -1774,6 +1862,13 @@ function applyAuthoritativeSnapshot(snapshot = {}, immediate = false) {
         player.position.copy(authoritativeLocalTarget);
       } else if (error > 0.28) {
         player.position.lerp(authoritativeLocalTarget, error > 1.2 ? 0.28 : 0.07);
+      }
+      if (Number.isFinite(Number(state.sprintEnergy))) {
+        const serverEnergy = THREE.MathUtils.clamp(Number(state.sprintEnergy), 0, 1);
+        sprintEnergy = immediate ? serverEnergy : THREE.MathUtils.lerp(sprintEnergy, serverEnergy, 0.18);
+      }
+      if (Number.isFinite(Number(state.sprintRechargeDelay))) {
+        sprintRechargeDelay = Math.max(0, Number(state.sprintRechargeDelay));
       }
       return;
     }
@@ -2320,6 +2415,45 @@ function prepareKeeperForShot(dir, chargeRatio) {
   targetKeeper.diveSide = targetKeeper.targetX >= targetKeeper.unit.position.x ? 1 : -1;
 }
 
+function getLocalKeeperArcTarget(state) {
+  const goalZ = state.side * field.length / 2;
+  const inwardDistance = Math.max(0.05, state.side * (goalZ - ball.position.z));
+  const angle = THREE.MathUtils.clamp(
+    Math.atan2(ball.position.x, inwardDistance),
+    -Math.PI * 0.47,
+    Math.PI * 0.47
+  );
+  return new THREE.Vector3(
+    Math.sin(angle) * 6.25,
+    0,
+    goalZ - state.side * Math.cos(angle) * 4.5
+  );
+}
+
+function tryLocalKeeperClear(state) {
+  if (multiplayerMode || state.clearanceCooldown > 0 || state.mode === "dive") return false;
+  if (ball.position.y > 0.9 || ballVelocity.length() > 13) return false;
+  const playerDistance = player.position.distanceTo(state.unit.position);
+  const ballDistance = ball.position.distanceTo(state.unit.position);
+  if (playerDistance > 2.15 || ballDistance > 2.45) return false;
+
+  const lateral = THREE.MathUtils.clamp((ball.position.x - state.unit.position.x) * 0.48, -0.72, 0.72);
+  const direction = new THREE.Vector3(lateral, 0, -state.side).normalize();
+  ballControlled = false;
+  ballOwner = null;
+  ballMagnetCooldown = 1.05;
+  ball.position.copy(state.unit.position).addScaledVector(direction, 1.5);
+  ball.position.y = 0.42;
+  ballVelocity.copy(direction).multiplyScalar(21);
+  ballVerticalVelocity = 1.3;
+  ballShotCharge = 0.18;
+  state.mode = "clear";
+  state.diveTimer = 0.42;
+  state.clearanceCooldown = 1.15;
+  momentEl.textContent = "El arquero le saca la pelota de los pies a Payne";
+  return true;
+}
+
 function kickBall(power, label, chargeRatio = 0, liftPower = 0, soundKind = "shot") {
   if (!player || !player.visible || !ball || goalCooldown > 0) return;
   if (multiplayerMode && (!socket?.connected || !networkSessionReady)) {
@@ -2329,7 +2463,10 @@ function kickBall(power, label, chargeRatio = 0, liftPower = 0, soundKind = "sho
   if (multiplayerMode && getLocalRoomPlayer()?.team === "spectators") return;
   const distance = player.position.distanceTo(ball.position);
   if (distance > 3.2) {
-    momentEl.textContent = "Payne mira la pelota: todavia no llega";
+    momentEl.textContent = modePhrase(
+      "Payne mira la pelota: todavia no llega",
+      "La pelota queda lejos. El intento fue emocional"
+    );
     return;
   }
 
@@ -2388,8 +2525,8 @@ function releaseChargedShot() {
   const liftPower = 2.2 + chargeRatio * 7.0;
   const percent = Math.round(chargeRatio * 80);
   const label = chargeRatio === 0
-    ? "Payne remata fuerte hacia su eje"
-    : `Payne carga el remate: +${percent}%`;
+    ? modePhrase("Payne remata fuerte hacia su eje", "Remate fuerte y decisiones cuestionables")
+    : modePhrase(`Payne carga el remate: +${percent}%`, `Remate cargado: +${percent}%`);
   kickBall(power, label, chargeRatio, liftPower, "shot");
 }
 
@@ -2406,7 +2543,9 @@ function toggleCameraMode() {
   if (multiplayerMode && spectatorViewing && getLocalRoomPlayer()?.team === "spectators") return;
   cameraMode = cameraMode === "third" ? "broadcast" : "third";
   if (cameraMode === "broadcast" && ball) broadcastFocusZ = ball.position.z;
-  momentEl.textContent = cameraMode === "broadcast" ? "Camara clasica activada" : "Camara Payne activada";
+  momentEl.textContent = cameraMode === "broadcast"
+    ? "Camara clasica activada"
+    : modePhrase("Camara Payne activada", "Camara tercera persona activada");
 }
 
 function updateGameplayControlHints() {
@@ -2532,7 +2671,8 @@ function updateGoalkeeper(dt) {
 
   states.forEach((state) => {
     const unit = state.unit;
-    const baseZ = state.side * (field.length / 2 - 4.5);
+    state.clearanceCooldown = Math.max(0, (state.clearanceCooldown || 0) - dt);
+    if (tryLocalKeeperClear(state)) return;
     if (state.mode === "dive") {
       state.diveTimer -= dt;
       unit.position.x = THREE.MathUtils.lerp(unit.position.x, state.targetX, 1 - Math.pow(0.006, dt));
@@ -2554,6 +2694,24 @@ function updateGoalkeeper(dt) {
       return;
     }
 
+    if (state.mode === "clear") {
+      state.diveTimer -= dt;
+      unit.position.y = Math.max(0, Math.sin((0.42 - state.diveTimer) * Math.PI) * 0.12);
+      if (unit.userData.limbs) {
+        unit.userData.limbs.legs.forEach((leg) => {
+          leg.rotation.x = -leg.userData.side * 0.95;
+        });
+        unit.userData.limbs.arms.forEach((arm) => {
+          arm.rotation.x = arm.userData.side * 0.42;
+        });
+      }
+      if (state.diveTimer <= 0) {
+        state.mode = "recover";
+        state.diveTimer = 0.85;
+      }
+      return;
+    }
+
     if (state.mode === "recover") {
       state.diveTimer -= dt;
       unit.rotation.z = THREE.MathUtils.lerp(unit.rotation.z, 0, 1 - Math.pow(0.004, dt));
@@ -2562,13 +2720,14 @@ function updateGoalkeeper(dt) {
     }
 
     if (state.mode === "ready") {
-      const trackX = THREE.MathUtils.clamp(ball.position.x, -4.8, 4.8);
-      unit.position.x = THREE.MathUtils.lerp(unit.position.x, trackX, 1 - Math.pow(0.02, dt));
-      unit.position.z = THREE.MathUtils.lerp(unit.position.z, baseZ, 0.08);
+      const target = getLocalKeeperArcTarget(state);
+      const blend = 1 - Math.pow(0.02, dt);
+      unit.position.x = THREE.MathUtils.lerp(unit.position.x, target.x, blend);
+      unit.position.z = THREE.MathUtils.lerp(unit.position.z, target.z, blend);
       unit.position.y = THREE.MathUtils.lerp(unit.position.y, 0, 0.18);
       unit.rotation.z = THREE.MathUtils.lerp(unit.rotation.z, 0, 0.14);
       unit.rotation.y = state.side > 0 ? Math.PI : 0;
-      animatePlayerRun(unit, dt, Math.abs(trackX - unit.position.x) > 0.02);
+      animatePlayerRun(unit, dt, unit.position.distanceTo(target) > 0.02);
     }
   });
 }
@@ -2606,9 +2765,9 @@ function handleKeeperBallCollision(previousBallPosition) {
   const incomingSpeed = Math.max(ballVelocity.length(), 9);
   ball.position.copy(impactPoint).addScaledVector(normal, keeperRadius + 0.62);
   ball.position.y = Math.max(impactPoint.y, 0.62);
-  ballVelocity.copy(normal.multiplyScalar(incomingSpeed * 0.82));
-  ballVelocity.z += -state.side * (Math.abs(ballVelocity.z) + 2.5);
-  ballVerticalVelocity = Math.max(ballVerticalVelocity * 0.25, 1.2);
+  ballVelocity.copy(normal.multiplyScalar(Math.min(incomingSpeed * 0.48, 18)));
+  ballVelocity.z += -state.side * 1.2;
+  ballVerticalVelocity = Math.max(ballVerticalVelocity * 0.18, 0.75);
   ballShotCharge = Math.max(ballShotCharge, 0.35);
   ballControlled = false;
   momentEl.textContent = "El arquero mete las manos y la pelota rebota";
@@ -2928,7 +3087,7 @@ function updateSpectatorPlayer(dt) {
   const throttle = Number(keys.has("KeyW") || keys.has("ArrowUp"))
     - Number(keys.has("KeyS") || keys.has("ArrowDown"));
   let moving = false;
-  const speed = 8.2 * (touchSprintActive || keys.has("ShiftLeft") ? 1.35 : 1);
+  const speed = 8.2 * (sprintActive() ? 1.35 : 1);
 
   if (touchMoveVector.lengthSq() >= 0.006) {
     const analog = THREE.MathUtils.clamp(touchMoveVector.length(), 0.28, 1);
@@ -2996,7 +3155,7 @@ function updatePlayer(dt) {
   const touchDir = getTouchMoveDirection();
   if (touchDir) {
     const analog = THREE.MathUtils.clamp(touchMoveVector.length(), 0.28, 1);
-    const touchSprintMultiplier = touchSprintActive ? 1.35 : 1;
+    const touchSprintMultiplier = sprintActive() ? 1.35 : 1;
     if (cameraMode === "broadcast") {
       if (!kickoffTaker) player.position.addScaledVector(touchDir, 10.5 * analog * touchSprintMultiplier * dt);
       player.position.x = THREE.MathUtils.clamp(player.position.x, -field.width / 2 + 2, field.width / 2 - 2);
@@ -3045,7 +3204,7 @@ function updatePlayer(dt) {
     if (keys.has("KeyD") || keys.has("ArrowRight")) screenDir.z += 1;
     if (screenDir.lengthSq() > 0) {
       screenDir.normalize();
-      const sprintMultiplier = keys.has("ShiftLeft") ? 1.35 : 1;
+      const sprintMultiplier = sprintActive() ? 1.35 : 1;
       if (!kickoffTaker) player.position.addScaledVector(screenDir, 10.5 * sprintMultiplier * dt);
       player.position.x = THREE.MathUtils.clamp(player.position.x, -field.width / 2 + 2, field.width / 2 - 2);
       player.position.z = THREE.MathUtils.clamp(player.position.z, -field.length / 2 + 1.1, field.length / 2 - 1.1);
@@ -3078,7 +3237,7 @@ function updatePlayer(dt) {
 
   if (isMoving) {
     const forward = new THREE.Vector3(Math.sin(playerAngle), 0, Math.cos(playerAngle));
-    const sprintMultiplier = keys.has("ShiftLeft") ? 1.35 : 1;
+    const sprintMultiplier = sprintActive() ? 1.35 : 1;
     if (!kickoffTaker) player.position.addScaledVector(forward, throttle * 10.5 * sprintMultiplier * dt);
     playerMoveDir.copy(forward).multiplyScalar(throttle).normalize();
     player.position.x = THREE.MathUtils.clamp(player.position.x, -field.width / 2 + 2, field.width / 2 - 2);
@@ -3146,10 +3305,12 @@ function animateGame() {
   updateTimer();
   phraseTimer -= dt;
   if (phraseTimer <= 0) {
-    momentEl.textContent = lines[Math.floor(Math.random() * lines.length)];
+    const phrases = multiplayerMode ? multiplayerLines : trainingLines;
+    momentEl.textContent = phrases[Math.floor(Math.random() * phrases.length)];
     phraseTimer = 4 + Math.random() * 2;
   }
 
+  updateSprintState(dt);
   if (!lobbyPreviewMode) updatePlayer(dt);
   updateRemoteActors(dt);
   updateBall(dt);
@@ -3395,8 +3556,25 @@ function openRoomOverlay() {
   updateSpectatorNotice();
 }
 
+function enterLiveSpectatorMode() {
+  if (!multiplayerMode || !activeRoom?.started || getLocalRoomPlayer()?.team !== "spectators") return false;
+  spectatorViewing = true;
+  cameraMode = "third";
+  spectatorJumpVelocity = 0;
+  spectatorJumpQueued = false;
+  spectatorGrounded = true;
+  keys.clear();
+  resetTouchStick();
+  return true;
+}
+
 function closeRoomOverlay() {
   if (!roomOverlayOpen) return;
+  const enteredStands = enterLiveSpectatorMode();
+  if (enteredStands) {
+    syncMultiplayerTeamsToField();
+    if (activeRoom.matchState) applyAuthoritativeSnapshot(activeRoom.matchState, true);
+  }
   roomOverlayOpen = false;
   roomScreen.classList.remove("is-active", "is-overlay");
 }
@@ -3439,7 +3617,7 @@ function createRoom() {
     updateServerStatus("Servidor desconectado");
     return;
   }
-  requestPlayerIdentity("Crear partida", createOnlineRoom);
+  requestPlayerIdentity("Crear partida", createOnlineRoom, { includeRoom: true });
 }
 
 function createOnlineRoom() {
@@ -3539,6 +3717,7 @@ function renderRoom() {
     roomScoreInput.value = activeRoom.settings.scoreLimit || 9;
     roomProModeToggle.checked = activeRoom.settings.proMode === true;
     roomKeeperToggle.checked = activeRoom.settings.keeperEnabled === true;
+    roomSprintToggle.checked = activeRoom.settings.limitedSprint !== false;
   }
   renderPlayers(redTeamList, "red");
   renderPlayers(spectatorsList, "spectators");
@@ -3551,7 +3730,6 @@ function renderRoom() {
   startMultiplayerGameBtn.style.display = "";
   startMultiplayerGameBtn.classList.toggle("is-waiting", !canManageRoom && !matchRunning);
   closeRoomOverlayBtn.textContent = "X";
-  recordBtn.style.display = canManageRoom ? "" : "none";
   copyLinkBtn.style.display = canManageRoom ? "" : "none";
   closeRoomOverlayBtn.style.display = canManageRoom && matchRunning ? "inline-flex" : "none";
   leaveRoomBtn.style.display = "";
@@ -3568,7 +3746,7 @@ function renderRoom() {
     button.style.display = canManageRoom ? "" : "none";
   });
   roomTimeInput.disabled = !canManageRoom || roomUnlimitedToggle.checked;
-  [roomScoreInput, roomProModeToggle, roomKeeperToggle, roomUnlimitedToggle].forEach((input) => {
+  [roomScoreInput, roomProModeToggle, roomKeeperToggle, roomSprintToggle, roomUnlimitedToggle].forEach((input) => {
     input.disabled = !canManageRoom;
   });
   if (pickStadiumBtn) pickStadiumBtn.style.display = canManageRoom ? "" : "none";
@@ -3651,6 +3829,7 @@ function syncOnlineRoomSettings() {
     scoreLimit: roomScoreInput.value,
     proMode: roomProModeToggle.checked,
     keeperEnabled: roomKeeperToggle.checked,
+    limitedSprint: roomSprintToggle.checked,
   });
 }
 
@@ -3661,6 +3840,8 @@ function startGame(options = {}) {
   if (celebrationFrame) cancelAnimationFrame(celebrationFrame);
   celebrationFrame = 0;
   keys.clear();
+  sprintEnergy = 1;
+  sprintRechargeDelay = 0;
   clearPlayerTags();
   roomOverlayOpen = false;
   multiplayerMode = Boolean(options.multiplayer);
@@ -3790,11 +3971,11 @@ function setupTouchControls() {
       }
       return;
     }
-    kickBall(16.66, "Payne mete pase alto", 0, 8.4, "pass");
+    kickBall(16.66, modePhrase("Payne mete pase alto", "Pase alto: que la busque el cielo"), 0, 8.4, "pass");
   });
   touchPassBtn?.addEventListener("pointerdown", (event) => {
     event.preventDefault();
-    kickBall(16.66, "Payne mete un pase", 0, 0.8, "pass");
+    kickBall(16.66, modePhrase("Payne mete un pase", "Pase potente al espacio"), 0, 0.8, "pass");
   });
   touchShotBtn?.addEventListener("pointerdown", (event) => {
     event.preventDefault();
@@ -3849,6 +4030,10 @@ closeRoomNoticeBtn?.addEventListener("click", () => {
 playerNameForm?.addEventListener("submit", (event) => {
   event.preventDefault();
   if (!saveEnteredPlayerName()) return;
+  if (pendingIdentityNeedsRoom && !(roomNameInput.value || "").trim()) {
+    roomNameInput.focus();
+    return;
+  }
   const action = pendingIdentityAction;
   closePlayerIdentity();
   action?.();
@@ -3901,6 +4086,7 @@ roomUnlimitedToggle.addEventListener("change", () => {
 roomScoreInput.addEventListener("change", syncOnlineRoomSettings);
 roomProModeToggle.addEventListener("change", syncOnlineRoomSettings);
 roomKeeperToggle.addEventListener("change", syncOnlineRoomSettings);
+roomSprintToggle.addEventListener("change", syncOnlineRoomSettings);
 startMultiplayerGameBtn.addEventListener("click", () => {
   if (!isCurrentRoomHost()) {
     if (!activeRoom?.started) return;
@@ -3919,6 +4105,7 @@ startMultiplayerGameBtn.addEventListener("click", () => {
       scoreLimit: roomScoreInput.value,
       proMode: roomProModeToggle.checked,
       keeperEnabled: roomKeeperToggle.checked,
+      limitedSprint: roomSprintToggle.checked,
     });
     return;
   }
@@ -3999,10 +4186,10 @@ window.addEventListener("keydown", (event) => {
     return;
   }
   if (event.code === "KeyQ") {
-    kickBall(16.66, "Payne mete pase alto", 0, 8.4, "pass");
+    kickBall(16.66, modePhrase("Payne mete pase alto", "Pase alto: que la busque el cielo"), 0, 8.4, "pass");
   }
   if (event.code === "KeyE" && !event.ctrlKey) {
-    kickBall(16.66, "Payne mete un pase", 0, 0.8, "pass");
+    kickBall(16.66, modePhrase("Payne mete un pase", "Pase potente al espacio"), 0, 0.8, "pass");
   }
   if (event.code === "KeyC") {
     toggleCameraMode();

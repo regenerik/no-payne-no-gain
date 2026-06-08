@@ -439,8 +439,85 @@ la versión multijugador actual.
 - Pruebas automáticas para las mecánicas principales.
 
 
+24. MEJORAS POSTERIORES A LA CREACION DEL HISTORIAL
+
+- Incorporacion de un acceso discreto llamado "Logs" en el menu principal.
+- Visor integrado, adaptable a PC y celular, para consultar este historial
+  completo sin abandonar el juego.
+- Cierre del visor mediante su boton o tocando fuera del panel.
+- Los arqueros dejaron de desplazarse solamente sobre una linea recta.
+- Nuevo recorrido defensivo en forma de media elipse alrededor del arco.
+- Ante ataques frontales, el arquero mantiene su posicion adelantada habitual.
+- Ante ataques desde los costados o la linea de fondo, se acerca al poste y
+  retrocede para cerrar el angulo.
+- El recorrido defensivo funciona simetricamente en ambos arcos.
+- Se conservaron la dificultad, las atajadas, las colisiones y los despejes
+  que ya estaban funcionando.
+- Cambio inmediato a modo espectador durante un partido activo.
+- Cuando el creador mueve a cualquier jugador a Spectators, este aparece
+  directamente en las gradas sin reiniciar el encuentro.
+- La entrada inmediata a las gradas tambien funciona para el propio creador.
+- Al cerrar la ventana del Room, el nuevo espectador ya puede caminar, saltar
+  y tirar papelitos mientras el partido continua.
+- Sincronizacion inmediata de posicion, camara y controles de espectador.
+- Nuevas pruebas automaticas para el recorrido de los arqueros y los cambios
+  de jugadores a las tribunas durante un partido.
+
+
+25. REGLA DE MANTENIMIENTO DE LOGS
+
+- Desde este punto, toda mejora funcional, visual, sonora, de interfaz,
+  multijugador o de experiencia de usuario que sea relevante se agregara
+  tambien a este historial.
+- Las correcciones tecnicas menores se registraran cuando cambien de manera
+  perceptible la estabilidad o la experiencia de juego.
+- El historial visible desde el menu y sus copias descargables se mantendran
+  sincronizados con la version actual del proyecto.
+
+
+26. ARQUEROS, MENU Y SPRINT LIMITADO
+
+- Las mejoras defensivas de los arqueros multijugador se incorporaron tambien
+  al Modo entrenamiento.
+- El arquero de entrenamiento ahora recorre una media elipse alrededor del
+  arco para cerrar ataques frontales, laterales y desde la linea de fondo.
+- El arquero de entrenamiento puede quitarle la pelota de los pies a Payne
+  cuando intenta atravesarlo conduciendo.
+- Se redujo la fuerza de los rebotes producidos por una atajada.
+- Los pelotazos detenidos por el arquero ya no salen despedidos hasta el campo
+  contrario y dejan una segunda jugada mas natural.
+- El ajuste de rebote se aplico tanto a entrenamiento como a multijugador.
+- Las frases de Mistica se separaron por modo.
+- Entrenamiento conserva frases dedicadas a Tim Payne y Nueva Zelanda.
+- Multijugador utiliza una coleccion independiente de frases graciosas y
+  neutrales, sin referencias a Payne ni a Nueva Zelanda.
+- Al encender la musica del menu con el volumen guardado en cero, comienza
+  automaticamente al 50%.
+- Se simplifico el bloque multijugador del menu principal.
+- El nombre de la sala y la cantidad de jugadores dejaron de ocupar espacio
+  permanente en la tarjeta principal.
+- Al tocar Crear partida se solicitan juntos el nombre del jugador, el nombre
+  de la room y la cantidad maxima de participantes.
+- Se agrego el subtitulo "Partidas online" antes de la tabla de salas.
+- Se elimino el boton Rec del lobby porque no tenia una funcion prevista.
+- Se incorporo la opcion "Sprint limitado" en la configuracion de la Room.
+- Sprint limitado comienza activado por defecto.
+- Cada jugador dispone de cinco segundos acumulados de carrera rapida.
+- Al agotar la energia existe una espera obligatoria de dos segundos.
+- Luego de la espera, la barra tarda cinco segundos en recargarse por completo.
+- El sprint puede volver a usarse mientras la barra se esta recargando.
+- Si el creador desactiva Sprint limitado, se conserva el comportamiento
+  ilimitado anterior.
+- El servidor controla de manera autoritativa la energia de sprint para que
+  sea justa y consistente entre anfitrion e invitados.
+- Se agrego una barra fina de energia que funciona en PC y celular sin tapar
+  los controles principales.
+- El tutorial Como jugar ahora explica el funcionamiento del sprint limitado.
+- Se agregaron pruebas automaticas para consumo, bloqueo, recarga, modo
+  ilimitado y rebotes moderados de los arqueros.
+
+
 Este proyecto comenzó como una pequeña broma futbolera protagonizada por
 Tim Payne y terminó convirtiéndose en un juego online completo, con una
 cantidad bastante gloriosa de detalles, reglas, cámaras, sonidos, tribunas,
 papelitos y arqueros con ganas de sacarte la pelota de los pies.
-

@@ -211,6 +211,12 @@ button {
   justify-content: flex-end;
 }
 
+.online-list-title {
+  margin: 10px 0 6px;
+  color: #ffffff;
+  font-size: 13px;
+}
+
 .menu-online-status .primary-button:disabled {
   cursor: wait;
   opacity: 0.72;
@@ -278,6 +284,16 @@ button {
 .identity-actions {
   justify-content: flex-end;
   gap: 8px;
+}
+
+.create-room-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 132px;
+  gap: 10px;
+}
+
+.create-room-fields[hidden] {
+  display: none;
 }
 
 .how-to-dialog {
@@ -1497,6 +1513,38 @@ h2 {
   text-align: right;
 }
 
+.sprint-meter {
+  position: fixed;
+  left: 50%;
+  bottom: 18px;
+  z-index: 6;
+  width: min(220px, 42vw);
+  height: 5px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.5);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.22);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-50%);
+  transition: opacity 180ms ease;
+}
+
+.sprint-meter.is-visible {
+  opacity: 0.72;
+}
+
+.sprint-fill {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, #e6f4ff, #56d6ff);
+  transform-origin: left center;
+}
+
+.sprint-meter.is-empty-delay .sprint-fill {
+  background: #ff5d65;
+}
+
 @keyframes goalPop {
   0% { opacity: 0; transform: translateX(-50%) scale(0.72) rotate(-5deg); }
   20% { opacity: 1; transform: translateX(-50%) scale(1.08) rotate(2deg); }
@@ -1581,6 +1629,16 @@ h2 {
 
   .how-to-dialog {
     padding: 8px;
+  }
+
+  .create-room-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .sprint-meter {
+    bottom: 8px;
+    width: min(180px, 36vw);
+    height: 4px;
   }
 
   .logs-dialog {

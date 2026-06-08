@@ -51,16 +51,7 @@
           <div class="menu-online-status">
             <button id="createRoomBtn" class="primary-button small-button" type="button" disabled>Crear partida</button>
           </div>
-          <div class="create-row menu-create-options">
-            <label>
-              Nombre de room
-              <input id="roomNameInput" type="text" value="Mi partida" maxlength="22" />
-            </label>
-            <label>
-              Jugadores
-              <input id="roomMaxInput" type="number" min="2" max="16" value="12" />
-            </label>
-          </div>
+          <h3 class="online-list-title">Partidas online</h3>
           <div class="room-list-head">
             <span>Ping</span>
             <span>Room</span>
@@ -80,7 +71,6 @@
           <header class="room-board-header">
             <strong id="activeRoomName">Mi partida</strong>
             <div class="room-tools">
-              <button id="recordBtn" type="button">Rec</button>
               <button id="copyLinkBtn" type="button">Link</button>
               <button id="closeRoomOverlayBtn" type="button">Close</button>
               <button id="leaveRoomBtn" type="button">Leave</button>
@@ -132,6 +122,7 @@
             <label>Score limit <input id="roomScoreInput" type="number" min="1" max="20" value="9" /></label>
             <label class="room-pro-setting">Pro mode <input id="roomProModeToggle" type="checkbox" /></label>
             <label class="room-pro-setting">Arqueros <input id="roomKeeperToggle" type="checkbox" checked /></label>
+            <label class="room-pro-setting">Sprint limitado <input id="roomSprintToggle" type="checkbox" checked /></label>
             <label>Stadium <span>Classic</span> <button id="pickStadiumBtn" type="button">Pick</button></label>
           </div>
 
@@ -191,6 +182,9 @@
           </div>
           <span id="chargeText">0%</span>
         </div>
+        <div id="sprintMeter" class="sprint-meter" aria-label="Energia de sprint">
+          <div id="sprintFill" class="sprint-fill"></div>
+        </div>
         <div id="goalBanner" class="goal-banner">GOOOOOOL DE PAYNE</div>
       </section>
 
@@ -215,6 +209,16 @@
           Nombre
           <input id="playerNameInput" class="player-name-input" type="text" maxlength="18" placeholder="PONE TU NOMBRE ACA" autocomplete="nickname" />
         </label>
+        <div id="createRoomFields" class="create-room-fields" hidden>
+          <label>
+            Nombre de room
+            <input id="roomNameInput" type="text" value="Mi partida" maxlength="22" />
+          </label>
+          <label>
+            Cantidad de jugadores
+            <input id="roomMaxInput" type="number" min="2" max="16" value="12" />
+          </label>
+        </div>
         <div class="identity-actions">
           <button id="cancelPlayerNameBtn" class="secondary-button small-button" type="button">Cancelar</button>
           <button class="primary-button small-button" type="submit">Continuar</button>
@@ -276,6 +280,12 @@
             <span class="how-to-number">06</span>
             <h3>Desde el celular</h3>
             <p>Usá el joystick y los botones táctiles. Para jugar más cómodo, girá el teléfono y usalo en posición horizontal. Los controles quedan cerca de ambos pulgares.</p>
+          </article>
+
+          <article class="how-to-card how-to-card-text">
+            <span class="how-to-number">07</span>
+            <h3>Sprint limitado</h3>
+            <p>Cuando la sala usa Sprint limitado, tenes 5 segundos de carrera rapida. Al vaciar la barra espera 2 segundos y luego tarda 5 segundos en recargarse. Podes volver a usarla mientras se esta llenando. El creador puede desactivar esta regla desde la Room.</p>
           </article>
         </div>
       </section>
