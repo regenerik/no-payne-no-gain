@@ -1,0 +1,446 @@
+NO PAYNE NO GAIN / TIM PAYNE FOOTBALLGAME
+HISTORIAL DE DESARROLLO Y MEJORAS
+
+Este documento resume la evolución del juego desde la primera idea hasta
+la versión multijugador actual.
+
+
+1. IDEA Y PRIMER PROTOTIPO
+
+- Creación del juego "No Payne No Gain" como una experiencia de fútbol 3D
+  sencilla, exagerada y humorística.
+- Menú principal inspirado en los menús de FIFA, dedicado a Tim Payne.
+- Cámara inicial en tercera persona detrás del jugador.
+- Modelo de Tim Payne con camiseta de Nueva Zelanda.
+- Primera mecánica: avanzar con la pelota, esquivar rivales y marcar goles.
+- Rivales con reacciones cómicas al ser superados.
+- Arquero inicialmente incapaz de detener los remates.
+- Partido inicial de tres minutos y celebración final levantando la copa.
+- Botones para volver a jugar o cerrar.
+
+
+2. CONTROLES Y MOVIMIENTO
+
+- Corrección del movimiento para que la flecha arriba avance en la dirección
+  hacia la que mira el jugador.
+- Rotación y movimiento relativos a la orientación, propios de un juego en
+  tercera persona.
+- Animación de brazos y piernas al caminar y correr.
+- Alternancia coordinada de brazos y piernas.
+- Personajes inmóviles cuando no se están desplazando.
+- Sprint con Shift izquierdo, aproximadamente 35% más rápido.
+- Prevención de atajos accidentales del navegador durante el juego.
+- Corrección específica del problema de Ctrl + W.
+- Escape vuelve al menú principal durante el entrenamiento.
+- Cambio de cámara mediante la tecla C.
+- Tecla P para activar o desactivar Pro Mode durante el entrenamiento.
+
+
+3. CANCHA Y PELOTA
+
+- Cambio del césped celeste original por césped verde.
+- Franjas de distintos tonos sobre el campo.
+- Incorporación del círculo central y líneas reglamentarias.
+- Incorporación de las dos áreas, puntos de penal y semicírculos correctos.
+- Arcos en ambos extremos de la cancha.
+- Profundidad para los arcos y sus redes.
+- Extensión de los límites de movimiento hasta la línea de fondo.
+- Bordes de la cancha verdes y rebote de pelota tipo mesa de pool.
+- Pelota independiente, con inercia y desaceleración.
+- Aumento progresivo de la inercia general.
+- Pelota blanca con secciones negras visibles.
+- Rotación visual de la pelota al rodar y al ser pateada.
+- Sombra proyectada sobre el césped para reconocer cuándo está en el aire.
+- Efecto elástico al conducir: la pelota se adelanta y el jugador la alcanza.
+- Reducción del temblor de cámara causado por pequeñas oscilaciones del balón.
+- Flecha en el suelo que indica la dirección del próximo disparo.
+- Reinicio de la pelota en el centro después de cada gol.
+
+
+4. PASES Y REMATES
+
+- Control izquierdo convertido inicialmente en toque suave.
+- Barra espaciadora utilizada para el remate fuerte.
+- Tecla E agregada como pase intermedio.
+- Dirección de los golpes calculada desde el centro del jugador hacia el
+  centro de la pelota, sin apuntado automático al arco.
+- Aumento de fuerza de los distintos tipos de golpe.
+- Sistema de carga manteniendo presionada la barra espaciadora.
+- Potencia progresiva según el tiempo de carga.
+- Barra visual de potencia debajo del jugador.
+- Colores de potencia desde verde, pasando por amarillo, hasta rojo.
+- Desaparición gradual de la barra después de soltar el disparo.
+- Elevación progresiva de la pelota según la potencia.
+- Ajustes sucesivos para que los tiros fuertes puedan superar el travesaño.
+- Distribución final de altura y potencia para que desde aproximadamente 80%
+  exista riesgo real de tirar por encima del arco.
+- Reducción del tiempo total necesario para cargar el remate.
+- Estela tipo cometa detrás de la pelota.
+- Intensidad de la estela proporcional a la velocidad y potencia del tiro.
+- Pase potente renombrado finalmente como "Pase".
+- Pase elevado asignado a Control.
+- Pase elevado con trayectoria parabólica suficiente para superar jugadores.
+- Pase y pase alto configurados como golpes potentes.
+- Vibración breve en celulares al patear, cuando el navegador lo permite.
+
+
+5. PRO MODE Y CONTROL ASISTIDO
+
+- Incorporación de Pro Mode desde el menú.
+- En Pro Mode, la pelota conserva la conducción física mediante colisiones.
+- Con Pro Mode desactivado, sistema magnético de control del balón.
+- Captura automática al acercarse a la pelota.
+- Pelota posicionada por delante del jugador al conducir.
+- Efecto elástico también en el control asistido.
+- Liberación temporal del lazo magnético al patear.
+- Conservación de la fuerza de pases y remates en ambos modos.
+- Posibilidad de robar la pelota mediante pase, pase alto o remate.
+- Pro Mode desactivado como valor predeterminado.
+- Configuración de Pro Mode disponible también en salas multijugador.
+
+
+6. ESTADIO
+
+- Sustitución del horizonte celeste por un estadio completo.
+- Gradas con profundidad, escalones y espacio visual para espectadores.
+- Sectores de asientos rojos y azules.
+- Pasillos amarillos entre bloques de tribunas.
+- Túneles de acceso.
+- Muros, bordes superiores y estructura externa del estadio.
+- Cielo nocturno azul oscuro con estrellas.
+- Eliminación del techo negro original.
+- Torres de iluminación grandes detrás de las gradas.
+- Postes de luz elevados y reposicionados.
+- Marcador físico dentro del estadio.
+- Marcador trasladado a la mitad de la cancha, del lado opuesto a la cámara
+  lateral.
+- Arcos pintados según el equipo que defiende ese campo.
+- Exterior del estadio con estacionamiento, calles, árboles y entorno para
+  evitar la sensación de que la cancha flota en el vacío.
+
+
+7. CÁMARAS
+
+- Cámara principal en tercera persona.
+- Ajuste de FOV para ampliar la visión sin alejar excesivamente la cámara.
+- Cámara lateral elevada inspirada en juegos clásicos de fútbol.
+- Orientación paralela a las líneas laterales largas de la cancha.
+- Paneo siguiendo la zona donde se encuentra la pelota.
+- Límites de cámara para conservar el campo dentro de la vista.
+- Extensión de esos límites en celular para mostrar correctamente los arcos
+  y las esquinas.
+- Adaptación de los controles direccionales según la cámara activa.
+- Indicadores en pantalla para jugadores que quedan fuera de la vista.
+- Nombre y flecha pequeña en el borde correspondiente.
+- Nombres visibles sobre los jugadores en cámara aérea.
+- En tercera persona, nombres visibles sobre los demás jugadores.
+- Corrección de movimientos bruscos y giros exagerados de cámara.
+
+
+8. ARQUERO DE ENTRENAMIENTO
+
+- Eliminación de los perseguidores originales.
+- Incorporación de un único arquero en entrenamiento.
+- Movimiento limitado al área.
+- Decisión probabilística de atajada.
+- Menor efectividad del arquero frente a remates cargados.
+- Lectura de dirección y trayectoria del disparo.
+- Animación de salto y extensión de manos.
+- Colisión del arquero con la pelota.
+- Rebote de la pelota al impactar con el arquero.
+- Ajustes para evitar que los cambios de colisión corporal perjudiquen el
+  multijugador.
+- Nueva acción defensiva: el arquero despeja con el pie cuando un atacante
+  intenta atravesarlo conduciendo de frente.
+- Despeje disponible tanto en Pro Mode como en control asistido.
+- Animación de despeje y tiempo de recuperación para evitar rebotes absurdos.
+
+
+9. MODO ENTRENAMIENTO
+
+- Cambio de nombre de Single Player a "Modo entrenamiento".
+- Eliminación del límite de tiempo.
+- Eliminación de la antigua celebración final obligatoria.
+- Partido de duración libre.
+- Botón para volver al menú.
+- Control de Pro Mode mediante P.
+- Control del ambiente mediante M.
+- Ayuda visible con los controles principales.
+- Contador permanente de goles.
+- Sonido de estadio independiente de la música del menú.
+
+
+10. SONIDO
+
+- Reemplazo de sonidos sintéticos por archivos reales.
+- kick.mp3 utilizado como base para los golpes a la pelota.
+- Variaciones del sonido según pase, pase alto y remate.
+- Eco progresivo en los disparos fuertes.
+- menu.mp3 como música de fondo del menú.
+- Corrección del retraso inicial de reproducción de la música.
+- ambiente_loop como sonido continuo del estadio.
+- Reproducción sin espacios perceptibles entre repeticiones.
+- gol.mp3 superpuesto al ambiente al marcar.
+- La música y el ambiente se pueden silenciar con M.
+- Música del menú y ambiente del estadio configurados de manera independiente.
+- Los sonidos de patada nunca se silencian.
+- Música del menú desactivada por defecto.
+- Ambiente de los partidos activado por defecto.
+- Volumen inicial del ambiente establecido aproximadamente al 50%.
+- Controles + y - en PC para subir o bajar el volumen correspondiente.
+- Botón táctil de sonido para entrenamiento en celular.
+
+
+11. MENÚ PRINCIPAL Y EXPERIENCIA DE USUARIO
+
+- Eliminación de elementos decorativos que tapaban botones en celular.
+- Favicon reemplazado por una pelota de fútbol.
+- Título HTML cambiado a "Tim Payne FootballGame".
+- Acceso directo al modo entrenamiento.
+- Lista de salas multijugador integrada en la pantalla principal.
+- Conexión automática al servidor.
+- URL predeterminada del servidor configurada.
+- Configuración avanzada del servidor oculta tras un botón de engranaje.
+- Animación de carga mientras se recuperan las salas.
+- Mensajes claros para conexión, salas vacías y errores.
+- Botón Crear partida disponible solamente tras una conexión exitosa.
+- Solicitud del nombre recién al crear o unirse a una sala.
+- Eliminación del nombre predeterminado "davo".
+- Nombre recordado para futuros ingresos.
+- Placeholder más visible para nuevos jugadores.
+- Nombre de sala genérico en lugar de "davo's room".
+- Botón "Cómo jugar".
+- Tutorial con controles, cámaras, potencia, espectadores, arqueros,
+  configuración online y recomendaciones para celular.
+- Capturas pequeñas acompañando las explicaciones.
+- Ajustes responsivos para menús y cuadros de diálogo.
+- Botones Continuar y Cancelar colocados más cerca.
+
+
+12. CONTROLES TÁCTILES
+
+- Detección de acceso desde dispositivos móviles.
+- Joystick virtual analógico en el lado izquierdo.
+- Movimiento mediante arrastre dentro de un círculo semitransparente.
+- Botones táctiles para pase alto, pase, remate y sprint.
+- Remate táctil mantenible para cargar potencia.
+- Botones de Cámara y Pro Mode.
+- Distribución adaptada a orientación vertical y horizontal.
+- Botones de acción agrandados para mejorar la precisión del dedo.
+- Posterior reducción de ancho para evitar superposición con el joystick.
+- Sprint colocado en una zona cómoda para uso frecuente.
+- Orden final en pantalla horizontal:
+  Pase alto, Pase, Remate, Sprint.
+- Bloqueo de selección de texto, menú contextual y resaltado azul accidental.
+- Vibración breve al ejecutar una patada.
+- Recomendación de jugar en modo horizontal.
+- Mejora de la cámara tercera persona al retroceder con joystick.
+
+
+13. PRIMERA VERSIÓN MULTIJUGADOR
+
+- Botón de modo multijugador.
+- Lista de salas con ping, nombre y cantidad de jugadores.
+- Creación de salas de hasta 16 jugadores.
+- Lobby con equipo rojo, espectadores y equipo azul.
+- Arrastrar y soltar jugadores entre columnas.
+- El creador puede organizar equipos antes de iniciar.
+- Configuración de tiempo, límite de goles, Pro Mode y estadio.
+- Inicio del partido desde el lobby.
+- Distribución de jugadores en el lado correspondiente.
+- Camisetas del color del equipo.
+- Corrección de orientación inicial del equipo azul.
+- El equipo rojo mira al arco azul y viceversa.
+- Eliminación del arquero controlado por computadora en la versión multijugador
+  inicial.
+- Posterior incorporación opcional de un arquero para cada equipo.
+- Switch de arqueros controlado por el creador.
+- Arqueros desactivados inicialmente y luego ajustados según las preferencias
+  de configuración.
+- Valores predeterminados finales de sala:
+  cinco minutos, arqueros activados y límite de nueve goles.
+- Opción de tiempo ilimitado.
+
+
+14. MARCADOR Y REGLAS DE PARTIDO
+
+- Marcador sincronizado entre jugadores.
+- Identificación de goles de Azul y Rojo.
+- Gol rojo al entrar en el arco azul y viceversa.
+- Conteo correcto en ambos arcos.
+- Tiempo visible dentro del marcador físico del estadio.
+- Resultado y reloj ajustados para pantallas pequeñas.
+- Respeto del tiempo configurado por el creador.
+- Respeto del límite de goles.
+- Cartel final indicando ganador y resultado.
+- Espera de aproximadamente dos segundos antes de regresar al lobby.
+- Regreso automático de todos los jugadores al lobby al terminar.
+- Sala conservada después de finalizar el encuentro.
+
+
+15. LOBBY DURANTE EL PARTIDO
+
+- Botón Room/Sala durante el juego.
+- Apertura del lobby sin detener el partido.
+- Escape abre y cierra el lobby.
+- El partido continúa detrás del menú.
+- El creador puede cambiar jugadores de equipo durante el encuentro.
+- Start Game reinicia el partido cuando el creador lo decide.
+- Invitados con opciones limitadas.
+- Eliminación de botones innecesarios como Rec, Link y Pick para invitados.
+- Botón Leave para abandonar.
+- Back to Game solamente disponible cuando hay un partido activo.
+- Mensaje "Waiting for a new game" cuando no existe un partido.
+- Vista de la cancha detrás del lobby.
+- Posiciones de los jugadores actualizadas al moverlos entre equipos.
+- Confirmación antes de abandonar al menú desde un partido multijugador.
+- Orden corregido de los botones Room y Menú.
+- Signo de admiración para avisar al creador que hay gente esperando.
+- Animación suave y tooltip del aviso.
+
+
+16. SERVIDOR ONLINE
+
+- Creación de un backend dedicado con Node.js y Socket.IO.
+- Preparación de frontend y servidor como repositorios separados.
+- Configuración para despliegue gratuito.
+- Frontend preparado para Render.
+- Servidor preparado para Render.
+- Variables y URL de servidor configurables.
+- Salas reales compartidas entre usuarios.
+- Sincronización de jugadores, equipos, pelota, tiempo y marcador.
+- Expulsión de invitados cuando el creador abandona la sala.
+- Aviso claro: "El creador de la sala salió".
+- Limpieza de la sala al cerrar o recargar el creador.
+- Invitados que abandonan sin reiniciar ni alterar el partido.
+- Eliminación de salas falsas de demostración.
+- Estado "Desconectado" cuando no se alcanza el servidor.
+- Reconexión automática al volver desde otra aplicación en celular.
+- Recuperación de identidad, sala y partido después de interrupciones breves.
+- Correcciones para evitar posiciones incorrectas después de reconectar.
+
+
+17. ARQUITECTURA AUTORITATIVA Y SINCRONIZACIÓN
+
+- Investigación del funcionamiento de juegos online como HaxBall.
+- Identificación de las limitaciones de una simulación dominada por el host.
+- Migración hacia una simulación autoritativa ejecutada por el servidor.
+- El servidor pasa a decidir posiciones, pelota, goles y reglas.
+- Envío de inputs del jugador en lugar de posiciones arbitrarias.
+- Secuencias y confirmaciones de inputs.
+- Interpolación de jugadores remotos.
+- Predicción local para reducir la sensación de latencia.
+- Reconciliación con el estado verdadero del servidor.
+- Descarte de snapshots antiguos.
+- Identificación de cada partido para evitar paquetes residuales.
+- Corrección de pelota fantasma para invitados.
+- Reducción de tirones, repeticiones de trayecto y remates dobles.
+- Corrección del efecto látigo al reiniciar la pelota después de un gol.
+- Sincronización autoritativa del marcador.
+- Pruebas automáticas de red y reconexión.
+
+
+18. COLISIONES MULTIJUGADOR
+
+- Colisión entre jugadores.
+- Colisión de jugadores quietos con la pelota.
+- Captura magnética disponible para todos en No Pro.
+- Posibilidad de recibir pases mediante control asistido.
+- Robo de pelota al ejecutar acciones dentro del rango adecuado.
+- Experimentos con colisión de torso y cabeza.
+- Reversión controlada de esas colisiones cuando afectaron negativamente la
+  experiencia de los invitados.
+- Conservación independiente de las mejoras de saque.
+- Protección contra rebotes hacia atrás producidos por predicción incorrecta.
+
+
+19. SAQUES DEL MEDIO
+
+- Después de un gol, saca un jugador del equipo que lo recibió.
+- Ubicación correcta del encargado en el centro.
+- Orientación correcta para ambos equipos.
+- El encargado puede rotar antes de sacar.
+- El encargado no puede abandonar su posición hasta patear.
+- Los compañeros deben permanecer en su propio campo.
+- Los rivales también deben permanecer en su campo.
+- Liberación de todas las restricciones en el momento del saque.
+- Conservación del control magnético para que la pelota gire con el encargado.
+- Si el equipo que debería sacar no tiene jugadores, la pelota queda libre.
+- Protección de la pelota y del encargado durante el saque.
+- Rivales impedidos de patear, empujar o robar antes de la reanudación.
+- Sincronización de esas restricciones entre host, invitados y celulares.
+- Corrección de reinicios sucesivos mediante Start Game.
+- Corrección del bloqueo al mover jugadores entre equipos y reiniciar.
+- Selección inicial aleatoria del equipo encargado del primer saque.
+
+
+20. ESPECTADORES EN LAS TRIBUNAS
+
+- Los usuarios sin equipo pueden mirar partidos desde las gradas.
+- Botón "Mirar partido" para espectadores.
+- Entrada automática a la grada al comenzar un partido.
+- Posibilidad de regresar al lobby y luego volver a mirar.
+- Cámara en tercera persona para espectadores.
+- Movimiento libre por las gradas.
+- Colisiones adaptadas a los escalones.
+- Prohibición de entrar al campo.
+- Salto mediante barra espaciadora.
+- Papelitos mediante la tecla Q.
+- Efecto de confeti 3D.
+- Posición del espectador conservada después de cada gol.
+- Regreso al lobby al terminar el encuentro.
+- Reingreso correcto a las gradas al comenzar un partido nuevo.
+- Orientación inicial mirando hacia la cancha.
+- Corrección del giro exagerado al caminar hacia atrás o a los costados.
+
+
+21. DETALLES VISUALES Y CORRECCIONES
+
+- Corrección de clipping en la unión entre camiseta y pantalón.
+- Ajuste de materiales y superficies superpuestas.
+- Correcciones de textos que tapaban controles.
+- Marcador móvil más pequeño y compacto.
+- Ajustes de botones para no invadir el joystick.
+- Correcciones de cámara en esquinas y extremos.
+- Eliminación de elementos que perjudicaban la vista en celular.
+- Diferenciación visual clara entre equipos rojo y azul.
+- Nombres visibles y consistentes para jugadores locales y remotos.
+- Indicadores de fuerza, dirección y jugadores fuera de pantalla.
+
+
+22. VERSIONADO Y RESPALDOS
+
+- Conservación de una primera versión estable denominada V1.
+- Creación de copias V2 antes de cambios importantes de arquitectura.
+- Creación de un respaldo V3 después de alcanzar una versión multijugador
+  especialmente estable.
+- Separación de frontend y servidor para facilitar despliegues.
+- Pruebas de sintaxis, simulación, red y reconexión antes de copiar cambios.
+- Mantenimiento de copias de trabajo y copias en el Desktop.
+
+
+23. ESTADO ACTUAL
+
+- Juego de fútbol 3D funcional en navegador.
+- Entrenamiento contra arquero.
+- Multijugador online por salas.
+- Física y reglas principales controladas por el servidor.
+- Soporte de PC y celular.
+- Cámaras en tercera persona y lateral elevada.
+- Pro Mode y control asistido.
+- Pases, pase alto, remates cargados y sprint.
+- Arqueros opcionales en multijugador.
+- Saques reglamentarios.
+- Espectadores caminando por las tribunas.
+- Sonido, música y ambiente configurables.
+- Lobby persistente y reconexión.
+- Interfaz responsiva.
+- Marcador, reloj, límite de goles y tiempo ilimitado.
+- Pruebas automáticas para las mecánicas principales.
+
+
+Este proyecto comenzó como una pequeña broma futbolera protagonizada por
+Tim Payne y terminó convirtiéndose en un juego online completo, con una
+cantidad bastante gloriosa de detalles, reglas, cámaras, sonidos, tribunas,
+papelitos y arqueros con ganas de sacarte la pelota de los pies.
+

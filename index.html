@@ -68,6 +68,7 @@
           </div>
           <div id="roomList" class="room-list menu-room-list"></div>
         </section>
+        <button id="logsBtn" class="logs-link" type="button">Logs</button>
       </section>
 
       <section id="roomsScreen" class="screen screen-rooms" aria-label="Rooms multijugador">
@@ -287,6 +288,23 @@
         <div class="identity-actions">
           <button id="closeRoomNoticeBtn" class="primary-button small-button" type="button">Entendido</button>
         </div>
+      </section>
+    </div>
+
+    <div id="logsDialog" class="logs-dialog" hidden>
+      <section class="logs-panel" role="dialog" aria-modal="true" aria-labelledby="logsTitle">
+        <header class="logs-header">
+          <div>
+            <span class="menu-rooms-kicker">Desde el primer prototipo</span>
+            <h2 id="logsTitle">Historial de mejoras</h2>
+          </div>
+          <button id="closeLogsBtn" class="icon-button" type="button" aria-label="Cerrar historial">X</button>
+        </header>
+        <iframe
+          class="logs-content"
+          src="./HISTORIAL_DE_MEJORAS_NO_PAYNE_NO_GAIN.txt"
+          title="Historial de mejoras de No Payne No Gain"
+        ></iframe>
       </section>
     </div>
 

@@ -7,6 +7,9 @@ const playBtn = document.querySelector("#playBtn");
 const howToPlayBtn = document.querySelector("#howToPlayBtn");
 const howToPlayDialog = document.querySelector("#howToPlayDialog");
 const closeHowToPlayBtn = document.querySelector("#closeHowToPlayBtn");
+const logsBtn = document.querySelector("#logsBtn");
+const logsDialog = document.querySelector("#logsDialog");
+const closeLogsBtn = document.querySelector("#closeLogsBtn");
 const musicToggleBtn = document.querySelector("#musicToggleBtn");
 const multiplayerBtn = document.querySelector("#multiplayerBtn");
 const proModeToggle = document.querySelector("#proModeToggle");
@@ -3820,6 +3823,15 @@ closeHowToPlayBtn?.addEventListener("click", () => {
 });
 howToPlayDialog?.addEventListener("click", (event) => {
   if (event.target === howToPlayDialog) howToPlayDialog.hidden = true;
+});
+logsBtn?.addEventListener("click", () => {
+  logsDialog.hidden = false;
+});
+closeLogsBtn?.addEventListener("click", () => {
+  logsDialog.hidden = true;
+});
+logsDialog?.addEventListener("click", (event) => {
+  if (event.target === logsDialog) logsDialog.hidden = true;
 });
 musicToggleBtn.addEventListener("click", toggleMute);
 connectServerBtn.addEventListener("click", connectOnlineServer);

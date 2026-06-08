@@ -294,6 +294,73 @@ button {
   display: none;
 }
 
+.logs-link {
+  position: fixed;
+  left: 12px;
+  bottom: 8px;
+  z-index: 20;
+  padding: 3px 5px;
+  border: 0;
+  color: rgba(255, 255, 255, 0.5);
+  background: transparent;
+  font: inherit;
+  font-size: 10px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.logs-link:hover,
+.logs-link:focus-visible {
+  color: #ffffff;
+}
+
+.logs-dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.84);
+  backdrop-filter: blur(10px);
+}
+
+.logs-dialog[hidden] {
+  display: none;
+}
+
+.logs-panel {
+  width: min(880px, 100%);
+  height: min(760px, calc(100vh - 48px));
+  padding: 18px;
+  border-radius: 8px;
+  background: #0b161a;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14), 0 28px 80px rgba(0, 0, 0, 0.58);
+}
+
+.logs-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  height: 64px;
+}
+
+.logs-header h2 {
+  max-width: none;
+  margin-top: 4px;
+  font-size: 28px;
+}
+
+.logs-content {
+  width: 100%;
+  height: calc(100% - 64px);
+  border: 0;
+  border-radius: 5px;
+  background: #f4f7f5;
+}
+
 .how-to-panel {
   width: min(1040px, 100%);
   margin: 0 auto;
@@ -1514,6 +1581,19 @@ h2 {
 
   .how-to-dialog {
     padding: 8px;
+  }
+
+  .logs-dialog {
+    padding: 8px;
+  }
+
+  .logs-panel {
+    height: calc(100vh - 16px);
+    padding: 12px;
+  }
+
+  .logs-header h2 {
+    font-size: 22px;
   }
 
   .how-to-panel {
