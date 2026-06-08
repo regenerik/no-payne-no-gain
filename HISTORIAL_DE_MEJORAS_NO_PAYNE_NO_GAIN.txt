@@ -619,6 +619,26 @@ la versión multijugador actual.
   descendio correctamente hasta y = -6,4 sin errores de ejecucion.
 
 
+32. CIERRE DEL SUBSUELO Y ACCESO OCULTO TERMINADO
+
+- La calle y su linea central fueron recortadas sobre la huella del museo
+  para que no atraviesen visualmente el tunel.
+- El techo ahora acompana cada tramo de la escalera y convierte el descenso
+  en un volumen cerrado, sin vistas accidentales al exterior.
+- Se agregaron limites estrictos para las cuatro esquinas del museo y para
+  los laterales del pasillo.
+- El calculo de altura ahora prioriza el interior del museo, evitando que el
+  jugador salte automaticamente al nivel de la calle.
+- Antes de alcanzar 20 goles se reconstruyen visualmente el terreno verde,
+  el borde de cancha, la pared, los escalones y los asientos sobre el acceso.
+- La fachada, el tunel y el museo permanecen completamente ocultos hasta
+  que se desbloquea el Modo libre.
+- Al desbloquearse, la cubierta desaparece y revela la entrada terminada.
+- Una prueba automatizada recorrio nuevamente el tunel y empujo al jugador
+  contra las cuatro esquinas: todas permanecieron a nivel subterraneo y no
+  se registraron errores de ejecucion.
+
+
 Este proyecto comenzó como una pequeña broma futbolera protagonizada por
 Tim Payne y terminó convirtiéndose en un juego online completo, con una
 cantidad bastante gloriosa de detalles, reglas, cámaras, sonidos, tribunas,

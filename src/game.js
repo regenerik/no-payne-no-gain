@@ -153,6 +153,7 @@ let trainingFreeMode = false;
 let trainingWorldColliders = [];
 let museumGroup = null;
 let trainingTunnelSeal = null;
+let trainingTunnelCover = null;
 const trainingMuseumFloorY = -6.4;
 const trainingTunnelStartX = -28;
 const trainingTunnelEndX = -48;
@@ -926,6 +927,9 @@ function constrainSpectatorToStands(unit) {
 
 function getTrainingExplorerFloorY(x, z) {
   if (multiplayerMode || !trainingFreeMode) return 0;
+  if (x <= trainingTunnelEndX && x >= -75 && Math.abs(z) <= 11.5) {
+    return trainingMuseumFloorY;
+  }
   const insidePassage = Math.abs(z) <= 3.55;
   if (!insidePassage || x > trainingTunnelStartX) return 0;
   if (x >= trainingTunnelEndX) {
@@ -936,7 +940,6 @@ function getTrainingExplorerFloorY(x, z) {
     );
     return trainingMuseumFloorY * progress;
   }
-  if (x >= -75 && Math.abs(z) <= 11.5) return trainingMuseumFloorY;
   return 0;
 }
 
@@ -959,6 +962,15 @@ function constrainTrainingExplorer(unit) {
 
   unit.position.x = THREE.MathUtils.clamp(unit.position.x, -75.2, field.width / 2 + 13);
   unit.position.z = THREE.MathUtils.clamp(unit.position.z, -49, 49);
+  if (unit.position.x < -48.5 && Math.abs(unit.position.z) > 3.55) {
+    unit.position.x = Math.min(unit.position.x, -49.2);
+    unit.position.z = THREE.MathUtils.clamp(unit.position.z, -10.95, 10.95);
+  } else if (unit.position.x < -49.2) {
+    unit.position.x = THREE.MathUtils.clamp(unit.position.x, -74.05, -49.2);
+    unit.position.z = THREE.MathUtils.clamp(unit.position.z, -10.95, 10.95);
+  } else if (unit.position.x < -25.2) {
+    unit.position.z = THREE.MathUtils.clamp(unit.position.z, -3.05, 3.05);
+  }
   resolveTrainingPlayerWorldCollisions(unit);
 }
 
@@ -1160,7 +1172,42 @@ function addTrainingMuseum() {
   addInvisibleCollider(-field.width / 2 - 4, 0, field.length / 2 + 3.7, field.width / 2 + 4, 9, field.length / 2 + 15);
   addInvisibleCollider(-field.width / 2 - 4, 0, -field.length / 2 - 15, field.width / 2 + 4, 9, -field.length / 2 - 3.7);
 
-  // The facade stays visible from the pitch, while the dark seal hides the secret.
+  // Before the unlock this cover restores the missing stand and green apron.
+  trainingTunnelCover = new THREE.Group();
+  trainingTunnelCover.name = "trainingTunnelCover";
+  const coverStandMat = new THREE.MeshBasicMaterial({ color: 0x344249 });
+  const coverSeatRed = new THREE.MeshBasicMaterial({ color: 0xd9274d });
+  const coverSeatBlue = new THREE.MeshBasicMaterial({ color: 0x2454c6 });
+  const coverApronMat = new THREE.MeshBasicMaterial({ color: 0x14682d });
+  const coverGround = new THREE.Mesh(new THREE.PlaneGeometry(50, 26), new THREE.MeshBasicMaterial({ color: 0x203526 }));
+  coverGround.rotation.x = -Math.PI / 2;
+  coverGround.position.set(-50, -0.085, 0);
+  trainingTunnelCover.add(coverGround);
+  const coverApron = new THREE.Mesh(new THREE.PlaneGeometry(9, 9), coverApronMat);
+  coverApron.rotation.x = -Math.PI / 2;
+  coverApron.position.set(-25.5, -0.01, 0);
+  trainingTunnelCover.add(coverApron);
+  addBox(0.8, 1.35, 8, -field.width / 2 - 4.25, 0.68, 0, coverStandMat, false, trainingTunnelCover);
+  for (let row = 0; row < 13; row += 1) {
+    const y = 1.15 + row * 0.34;
+    const rowX = -field.width / 2 - 5.4 - row * 0.74;
+    addBox(0.88, 0.16, 8, rowX, y - 0.17, 0, coverStandMat, false, trainingTunnelCover);
+    addBox(
+      0.46,
+      0.42,
+      6.3,
+      rowX,
+      y,
+      0,
+      row < 6 ? coverSeatBlue : coverSeatRed,
+      false,
+      trainingTunnelCover
+    );
+  }
+  addBox(1, 8, 8, -field.width / 2 - 15, 4, 0, new THREE.MeshBasicMaterial({ color: 0x0d1716 }), false, trainingTunnelCover);
+  scene.add(trainingTunnelCover);
+
+  // The facade is part of the secret and appears only after the unlock.
   const facade = new THREE.Group();
   facade.name = "trainingMuseumFacade";
   addBox(1.1, 5.2, 0.62, -25.55, 2.6, -4.15, silverMat, false, facade);
@@ -1171,13 +1218,14 @@ function addTrainingMuseum() {
   facadeShield.rotation.y = Math.PI / 2;
   facadeShield.position.set(-25.08, 4.28, 0);
   facade.add(facadeShield);
-  scene.add(facade);
+  museumGroup.add(facade);
 
   trainingTunnelSeal = new THREE.Mesh(
     new THREE.BoxGeometry(0.42, 4.2, 7.45),
     new THREE.MeshBasicMaterial({ color: 0x010202 })
   );
   trainingTunnelSeal.position.set(-25.86, 2.1, 0);
+  trainingTunnelSeal.visible = false;
   scene.add(trainingTunnelSeal);
 
   // Entrance landing and a long stairway descending six metres underground.
@@ -1196,7 +1244,13 @@ function addTrainingMuseum() {
   const tunnelWallHeight = 4.7 - trainingMuseumFloorY;
   addBox(23.7, tunnelWallHeight, 0.42, -37.9, tunnelCenterY, -3.85, darkWallMat);
   addBox(23.7, tunnelWallHeight, 0.42, -37.9, tunnelCenterY, 3.85, darkWallMat);
-  addBox(23.7, 0.32, 8.1, -37.9, 4.62, 0, ceilingMat);
+  // The ceiling follows the descent, keeping roads and exterior scenery out.
+  for (let index = 0; index < stairCount; index += 1) {
+    const progress = (index + 0.5) / stairCount;
+    const floorY = trainingMuseumFloorY * progress;
+    const x = trainingTunnelStartX - (index + 0.5) * stairLength;
+    addBox(stairLength + 0.04, 0.3, 8.1, x, floorY + 4.45, 0, ceilingMat);
+  }
 
   // Low handrails follow the descent without blocking the view.
   const railMat = new THREE.MeshStandardMaterial({ color: 0x626b70, metalness: 0.38, roughness: 0.42 });
@@ -1323,6 +1377,7 @@ function unlockTrainingFreeMode() {
   trainingFreeMode = true;
   if (museumGroup) museumGroup.visible = true;
   if (trainingTunnelSeal) trainingTunnelSeal.visible = false;
+  if (trainingTunnelCover) trainingTunnelCover.visible = false;
   goalBanner.textContent = "MODO LIBRE DESBLOQUEADO";
   goalBanner.classList.remove("show");
   void goalBanner.offsetWidth;
@@ -1368,7 +1423,14 @@ function addField({ trainingMode = false } = {}) {
   addFlatArea(24, 112, 49, 0, asphaltMat);
   addFlatArea(76, 22, 0, -67, asphaltMat);
   addFlatArea(76, 22, 0, 67, asphaltMat);
-  addFlatArea(12, 194, -68, 0, roadMat, -0.045);
+  if (trainingMode) {
+    const roadSegmentDepth = (194 - 28) / 2;
+    const roadSegmentOffset = 14 + roadSegmentDepth / 2;
+    addFlatArea(12, roadSegmentDepth, -68, -roadSegmentOffset, roadMat, -0.045);
+    addFlatArea(12, roadSegmentDepth, -68, roadSegmentOffset, roadMat, -0.045);
+  } else {
+    addFlatArea(12, 194, -68, 0, roadMat, -0.045);
+  }
   addFlatArea(12, 194, 68, 0, roadMat, -0.045);
   addFlatArea(148, 12, 0, -86, roadMat, -0.045);
   addFlatArea(148, 12, 0, 86, roadMat, -0.045);
@@ -1432,6 +1494,16 @@ function addField({ trainingMode = false } = {}) {
   }
 
   for (const x of [-68, 68]) {
+    if (trainingMode && x < 0) {
+      const lineDepth = (190 - 28) / 2;
+      const lineOffset = 14 + lineDepth / 2;
+      for (const z of [-lineOffset, lineOffset]) {
+        const centerLine = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.02, lineDepth), roadLineMat);
+        centerLine.position.set(x, -0.015, z);
+        scene.add(centerLine);
+      }
+      continue;
+    }
     const centerLine = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.02, 190), roadLineMat);
     centerLine.position.set(x, -0.015, 0);
     scene.add(centerLine);
@@ -2447,6 +2519,7 @@ function setupGame() {
   trainingWorldColliders = [];
   museumGroup = null;
   trainingTunnelSeal = null;
+  trainingTunnelCover = null;
   addField({ trainingMode: !multiplayerMode });
 
   const localRoomPlayer = getLocalRoomPlayer();
