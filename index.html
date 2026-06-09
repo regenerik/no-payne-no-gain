@@ -3,91 +3,96 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Futbol World Cup</title>
+    <title>FOOTBALL WORLD CUP</title>
     <link rel="icon" href="./favicon.ico" sizes="any" />
     <link rel="stylesheet" href="./src/styles.css" />
   </head>
   <body>
     <main id="app">
-      <section id="menu" class="screen screen-menu is-active" aria-label="Menu principal">
+      <section id="menu" class="screen screen-menu is-active" aria-label="Menú principal" data-i18n-aria-label="aria.mainMenu">
         <div class="menu-shade"></div>
         <div class="menu-topbar">
-          <span>Futbol World Cup</span>
-          <button id="musicToggleBtn" class="music-toggle" type="button">Musica: ON</button>
+          <span>FOOTBALL WORLD CUP</span>
+          <div class="menu-topbar-actions">
+            <button id="languageToggleBtn" class="language-toggle" type="button" aria-label="Cambiar idioma">
+              <span>ES</span><i aria-hidden="true"></i><span>EN</span>
+            </button>
+            <button id="musicToggleBtn" class="music-toggle" type="button">Música: OFF</button>
+          </div>
         </div>
         <div class="menu-copy">
-          <p class="eyebrow">Football without borders</p>
-          <h1>Futbol<br />World Cup</h1>
-          <p class="tagline">Entrena, arma tu equipo y conquista la cancha.</p>
+          <p class="eyebrow" data-i18n="menu.eyebrow">Fútbol sin fronteras</p>
+          <h1>FOOTBALL<br />WORLD CUP</h1>
+          <p class="tagline" data-i18n="menu.tagline">Entrena, arma tu equipo y conquista la cancha.</p>
           <label class="mode-switch" for="proModeToggle">
             <span>
               <strong>Pro mode</strong>
-              <small>Pelota con colision clasica</small>
+              <small data-i18n="menu.proDescription">Pelota con colisión clásica</small>
             </span>
             <input id="proModeToggle" type="checkbox" />
             <i aria-hidden="true"></i>
           </label>
           <div class="menu-actions">
-            <button id="playBtn" class="primary-button" type="button">Entrenamiento</button>
-            <button id="howToPlayBtn" class="secondary-button" type="button">Como jugar</button>
+            <button id="playBtn" class="primary-button" type="button" data-i18n="menu.training">Entrenar</button>
+            <button id="howToPlayBtn" class="secondary-button" type="button" data-i18n="menu.howTo">Cómo jugar</button>
           </div>
         </div>
-        <section class="menu-rooms" aria-label="Partidas multijugador">
+        <section class="menu-rooms" aria-label="Partidas multijugador" data-i18n-aria-label="aria.multiplayerMatches">
           <header class="menu-rooms-header">
             <div>
-              <span class="menu-rooms-kicker">Multijugador</span>
-              <strong>Partidas online</strong>
+              <span class="menu-rooms-kicker" data-i18n="menu.multiplayer">Multijugador</span>
+              <strong data-i18n="menu.onlineMatches">Partidas online</strong>
             </div>
-            <button id="serverSettingsBtn" class="icon-button" type="button" title="Configurar servidor" aria-label="Configurar servidor">&#9881;</button>
+            <button id="serverSettingsBtn" class="icon-button" type="button" title="Configurar servidor" aria-label="Configurar servidor" data-i18n-title="aria.serverSettings" data-i18n-aria-label="aria.serverSettings">&#9881;</button>
           </header>
           <div id="serverSettingsPanel" class="server-settings-panel" hidden>
             <label>
-              Servidor
+              <span data-i18n="server.label">Servidor</span>
               <input id="serverUrlInput" type="url" placeholder="https://tu-server.onrender.com" />
             </label>
-            <button id="connectServerBtn" class="secondary-button small-button" type="button">Reconectar</button>
+            <button id="connectServerBtn" class="secondary-button small-button" type="button" data-i18n="server.reconnect">Reconectar</button>
             <span id="serverStatus" class="server-status">Conectando...</span>
           </div>
           <div class="menu-online-status">
-            <button id="createRoomBtn" class="primary-button small-button" type="button" disabled>Crear partida</button>
+            <button id="createRoomBtn" class="primary-button small-button" type="button" disabled data-i18n="menu.createMatch">Crear partida</button>
           </div>
-          <h3 class="online-list-title">Partidas online</h3>
+          <h3 class="online-list-title" data-i18n="menu.onlineMatches">Partidas online</h3>
           <div class="room-list-head">
             <span>Ping</span>
-            <span>Room</span>
-            <span>Jugadores</span>
+            <span data-i18n="room.room">Sala</span>
+            <span data-i18n="room.players">Jugadores</span>
           </div>
           <div id="roomList" class="room-list menu-room-list"></div>
         </section>
-        <button id="logsBtn" class="logs-link" type="button">Logs</button>
+        <button id="logsBtn" class="logs-link" type="button" data-i18n="menu.logs">Historial</button>
       </section>
 
       <section id="roomsScreen" class="screen screen-rooms" aria-label="Rooms multijugador">
-        <button id="roomsBackBtn" class="secondary-button small-button" type="button">Volver</button>
+        <button id="roomsBackBtn" class="secondary-button small-button" type="button" data-i18n="common.back">Volver</button>
       </section>
 
-      <section id="roomScreen" class="screen screen-room" aria-label="Lobby de room">
+      <section id="roomScreen" class="screen screen-room" aria-label="Sala de espera" data-i18n-aria-label="aria.roomLobby">
         <div class="room-board">
           <header class="room-board-header">
             <strong id="activeRoomName">Mi partida</strong>
             <div class="room-tools">
-              <button id="copyLinkBtn" type="button">Link</button>
-              <button id="closeRoomOverlayBtn" type="button">Close</button>
-              <button id="leaveRoomBtn" type="button">Leave</button>
+              <button id="copyLinkBtn" type="button" data-i18n="room.link">Enlace</button>
+              <button id="closeRoomOverlayBtn" type="button">X</button>
+              <button id="leaveRoomBtn" type="button" data-i18n="room.leave">Salir</button>
             </div>
           </header>
 
           <div class="team-layout">
             <aside class="room-side-actions">
-              <button id="autoTeamsBtn" type="button">Auto</button>
-              <button id="randomTeamsBtn" type="button">Rand</button>
-              <button id="lockRoomBtn" type="button">Lock</button>
-              <button id="resetTeamsBtn" type="button">Reset</button>
+              <button id="autoTeamsBtn" type="button" data-i18n="room.auto">Auto</button>
+              <button id="randomTeamsBtn" type="button" data-i18n="room.random">Azar</button>
+              <button id="lockRoomBtn" type="button" data-i18n="room.lock">Bloquear</button>
+              <button id="resetTeamsBtn" type="button" data-i18n="room.reset">Reiniciar</button>
             </aside>
 
             <div class="team-column">
               <div class="team-title red-title">
-                <span>Red</span>
+                <span data-i18n="team.red">Rojo</span>
                 <button id="moveToSpectatorsFromRedBtn" type="button">&gt;</button>
               </div>
               <div id="redTeamList" class="player-list" data-team="red"></div>
@@ -96,7 +101,7 @@
             <div class="team-column spectators-column">
               <div class="team-title">
                 <button id="moveToRedBtn" type="button">&lt;</button>
-                <span>Spectators</span>
+                <span data-i18n="team.spectators">Espectadores</span>
                 <button id="moveToBlueBtn" type="button">&gt;</button>
               </div>
               <div id="spectatorsList" class="player-list" data-team="spectators"></div>
@@ -105,7 +110,7 @@
             <div class="team-column">
               <div class="team-title blue-title">
                 <button id="moveToSpectatorsFromBlueBtn" type="button">&lt;</button>
-                <span>Blue</span>
+                <span data-i18n="team.blue">Azul</span>
               </div>
               <div id="blueTeamList" class="player-list" data-team="blue"></div>
             </div>
@@ -113,36 +118,36 @@
 
           <div class="room-settings">
             <div class="room-time-setting">
-              <label>Time limit <input id="roomTimeInput" type="number" min="1" max="15" value="5" /></label>
+              <label><span data-i18n="room.timeLimit">Tiempo</span> <input id="roomTimeInput" type="number" min="1" max="15" value="5" /></label>
               <label class="room-unlimited-setting">
                 <input id="roomUnlimitedToggle" type="checkbox" />
-                <span>Ilimitado</span>
+                <span data-i18n="room.unlimited">Ilimitado</span>
               </label>
             </div>
-            <label>Score limit <input id="roomScoreInput" type="number" min="1" max="20" value="9" /></label>
+            <label><span data-i18n="room.scoreLimit">Límite de goles</span> <input id="roomScoreInput" type="number" min="1" max="20" value="9" /></label>
             <label class="room-pro-setting">Pro mode <input id="roomProModeToggle" type="checkbox" /></label>
-            <label class="room-pro-setting">Arqueros <input id="roomKeeperToggle" type="checkbox" checked /></label>
-            <label class="room-pro-setting">Sprint limitado <input id="roomSprintToggle" type="checkbox" checked /></label>
-            <label>Stadium <span>Classic</span> <button id="pickStadiumBtn" type="button">Pick</button></label>
+            <label class="room-pro-setting"><span data-i18n="room.keepers">Arqueros</span> <input id="roomKeeperToggle" type="checkbox" checked /></label>
+            <label class="room-pro-setting"><span data-i18n="room.limitedSprint">Sprint limitado</span> <input id="roomSprintToggle" type="checkbox" checked /></label>
+            <label><span data-i18n="room.stadium">Estadio</span> <span data-i18n="room.classic">Clásico</span> <button id="pickStadiumBtn" type="button" data-i18n="room.pick">Elegir</button></label>
           </div>
 
-          <button id="startMultiplayerGameBtn" class="start-room-button" type="button">Start game</button>
+          <button id="startMultiplayerGameBtn" class="start-room-button" type="button" data-i18n="room.start">Iniciar partido</button>
         </div>
       </section>
 
-      <section id="gameScreen" class="screen screen-game" aria-label="Juego">
+      <section id="gameScreen" class="screen screen-game" aria-label="Juego" data-i18n-aria-label="aria.game">
         <canvas id="gameCanvas"></canvas>
         <div class="hud">
           <div class="hud-panel">
-            <span class="hud-label">Modo</span>
+            <span class="hud-label" data-i18n="hud.mode">Modo</span>
             <strong id="timer">03:00</strong>
           </div>
           <div class="hud-panel">
-            <span class="hud-label">Goles</span>
+            <span class="hud-label" data-i18n="hud.goals">Goles</span>
             <strong id="score">0</strong>
           </div>
           <div class="hud-panel wide">
-            <span class="hud-label">Mística</span>
+            <span class="hud-label" data-i18n="hud.mystique">Mística</span>
             <strong id="moment">La pelota empieza a rodar</strong>
           </div>
         </div>
@@ -157,24 +162,24 @@
           <span>E: pase</span>
           <span>Espacio: remate</span>
         </div>
-        <div id="touchControls" class="touch-controls" aria-label="Controles tactiles">
+        <div id="touchControls" class="touch-controls" aria-label="Controles táctiles" data-i18n-aria-label="aria.touchControls">
           <div class="touch-quick">
-            <button id="touchCameraBtn" type="button">Camara</button>
+            <button id="touchCameraBtn" type="button" data-i18n="controls.camera">Cámara</button>
             <button id="touchProBtn" type="button">Pro</button>
-            <button id="touchSoundBtn" type="button">Ambiente</button>
+            <button id="touchSoundBtn" type="button" data-i18n="controls.ambience">Ambiente</button>
           </div>
           <div id="touchJoystick" class="touch-joystick" aria-label="Movimiento">
             <div id="touchStick" class="touch-stick"></div>
           </div>
           <div class="touch-actions" aria-label="Disparos">
-            <button id="touchSoftBtn" type="button">Pase alto</button>
-            <button id="touchShotBtn" type="button">Remate</button>
-            <button id="touchPassBtn" type="button">Pase</button>
+            <button id="touchSoftBtn" type="button" data-i18n="controls.highPass">Pase alto</button>
+            <button id="touchShotBtn" type="button" data-i18n="controls.shot">Remate</button>
+            <button id="touchPassBtn" type="button" data-i18n="controls.pass">Pase</button>
             <button id="touchSprintBtn" class="touch-sprint" type="button">Sprint</button>
           </div>
         </div>
-        <button id="roomGameBtn" class="menu-button room-game-button" type="button">Room</button>
-        <button id="backMenuBtn" class="menu-button" type="button">Menu</button>
+        <button id="roomGameBtn" class="menu-button room-game-button" type="button" data-i18n="room.room">Sala</button>
+        <button id="backMenuBtn" class="menu-button" type="button" data-i18n="common.menu">Menú</button>
         <div id="playerOverlay" class="player-overlay" aria-hidden="true"></div>
         <div id="chargeMeter" class="charge-meter" aria-hidden="true">
           <div class="charge-track">
@@ -182,7 +187,7 @@
           </div>
           <span id="chargeText">0%</span>
         </div>
-        <div id="sprintMeter" class="sprint-meter" aria-label="Energia de sprint">
+        <div id="sprintMeter" class="sprint-meter" aria-label="Energía de sprint" data-i18n-aria-label="aria.sprintEnergy">
           <div id="sprintFill" class="sprint-fill"></div>
         </div>
         <div id="goalBanner" class="goal-banner">GOOOOOOL</div>
@@ -191,12 +196,12 @@
       <section id="endScreen" class="screen screen-end" aria-label="Final del partido">
         <canvas id="celebrationCanvas"></canvas>
         <div class="end-copy">
-          <p class="eyebrow">Final del partido</p>
-          <h2>Campeones del mundo</h2>
-          <p>La cancha se rinde, cae papel picado y el estadio festeja.</p>
+          <p class="eyebrow" data-i18n="end.final">Final del partido</p>
+          <h2 data-i18n="end.champions">Campeones del mundo</h2>
+          <p data-i18n="end.description">La cancha se rinde, cae papel picado y el estadio festeja.</p>
           <div class="end-actions">
-            <button id="againBtn" class="primary-button" type="button">Jugar de vuelta</button>
-            <button id="closeBtn" class="secondary-button" type="button">Cerrar</button>
+            <button id="againBtn" class="primary-button" type="button" data-i18n="end.playAgain">Jugar de vuelta</button>
+            <button id="closeBtn" class="secondary-button" type="button" data-i18n="end.close">Cerrar</button>
           </div>
         </div>
       </section>
@@ -204,24 +209,24 @@
 
     <div id="playerNameDialog" class="identity-dialog" hidden>
       <form id="playerNameForm" class="identity-panel">
-        <strong id="playerNameDialogTitle">Tu nombre</strong>
+        <strong id="playerNameDialogTitle" data-i18n="identity.title">Tu nombre</strong>
         <label>
-          Nombre
-          <input id="playerNameInput" class="player-name-input" type="text" maxlength="18" placeholder="PONE TU NOMBRE ACA" autocomplete="nickname" />
+          <span data-i18n="identity.name">Nombre</span>
+          <input id="playerNameInput" class="player-name-input" type="text" maxlength="18" placeholder="PONÉ TU NOMBRE ACÁ" data-i18n-placeholder="identity.placeholder" autocomplete="nickname" />
         </label>
         <div id="createRoomFields" class="create-room-fields" hidden>
           <label>
-            Nombre de room
+            <span data-i18n="identity.roomName">Nombre de la sala</span>
             <input id="roomNameInput" type="text" value="Mi partida" maxlength="22" />
           </label>
           <label>
-            Cantidad de jugadores
+            <span data-i18n="identity.playerCount">Cantidad de jugadores</span>
             <input id="roomMaxInput" type="number" min="2" max="16" value="12" />
           </label>
         </div>
         <div class="identity-actions">
-          <button id="cancelPlayerNameBtn" class="secondary-button small-button" type="button">Cancelar</button>
-          <button class="primary-button small-button" type="submit">Continuar</button>
+          <button id="cancelPlayerNameBtn" class="secondary-button small-button" type="button" data-i18n="common.cancel">Cancelar</button>
+          <button class="primary-button small-button" type="submit" data-i18n="common.continue">Continuar</button>
         </div>
       </form>
     </div>
@@ -230,8 +235,8 @@
       <section class="how-to-panel" role="dialog" aria-modal="true" aria-labelledby="howToPlayTitle">
         <header class="how-to-header">
           <div>
-            <span class="menu-rooms-kicker">Manual de cancha</span>
-            <h2 id="howToPlayTitle">Como jugar</h2>
+            <span class="menu-rooms-kicker" data-i18n="help.kicker">Manual de cancha</span>
+            <h2 id="howToPlayTitle" data-i18n="menu.howTo">Cómo jugar</h2>
           </div>
           <button id="closeHowToPlayBtn" class="icon-button" type="button" aria-label="Cerrar como jugar">X</button>
         </header>
@@ -241,8 +246,8 @@
             <img src="./tutorial/camara-lateral.png" alt="Partido visto desde la camara lateral" />
             <div>
               <span class="how-to-number">01</span>
-              <h3>Entrá a la cancha</h3>
-              <p>Elegí Entrenamiento para practicar o entrá a una sala online. En multijugador: elegí una sala o creá la tuya, escribí tu nombre, acomodá los jugadores y presioná Start game.</p>
+              <h3 data-i18n="help.enterTitle">Entrá a la cancha</h3>
+              <p data-i18n="help.enterText">Elegí Entrenamiento para practicar o entrá a una sala online. En multijugador: elegí una sala o creá la tuya, escribí tu nombre, acomodá los jugadores y presioná Iniciar partido.</p>
             </div>
           </article>
 
@@ -250,8 +255,8 @@
             <img src="./tutorial/remate-cargado.png" alt="Indicador de potencia de un remate" />
             <div>
               <span class="how-to-number">02</span>
-              <h3>Pelota y remates</h3>
-              <p><kbd>Q</kbd> hace un pase alto, <kbd>E</kbd> un pase y <kbd>Espacio</kbd> remata. Mantené Espacio para cargar potencia: aumenta la velocidad y la altura, pero si te excedés la pelota puede pasar sobre el travesaño.</p>
+              <h3 data-i18n="help.ballTitle">Pelota y remates</h3>
+              <p data-i18n-html="help.ballText"><kbd>Q</kbd> hace un pase alto, <kbd>E</kbd> un pase y <kbd>Espacio</kbd> remata. Mantené Espacio para cargar potencia: aumenta la velocidad y la altura, pero si te excedés la pelota puede pasar sobre el travesaño.</p>
             </div>
           </article>
 
@@ -259,33 +264,33 @@
             <img src="./tutorial/estadio.png" alt="Cancha y tribunas del estadio" />
             <div>
               <span class="how-to-number">03</span>
-              <h3>Movimiento y cámaras</h3>
-              <p>Movete con flechas o <kbd>WASD</kbd>. Mantené <kbd>Shift</kbd> para correr y tocá <kbd>C</kbd> para alternar entre tercera persona y cámara lateral. <kbd>P</kbd> cambia Pro mode durante el entrenamiento.</p>
+              <h3 data-i18n="help.movementTitle">Movimiento y cámaras</h3>
+              <p data-i18n-html="help.movementText">Movete con flechas o <kbd>WASD</kbd>. Mantené <kbd>Shift</kbd> para usar sprint y tocá <kbd>C</kbd> para alternar entre tercera persona y cámara lateral. <kbd>P</kbd> cambia Pro mode durante el entrenamiento.</p>
             </div>
           </article>
 
           <article class="how-to-card how-to-card-text">
             <span class="how-to-number">04</span>
-            <h3>Multijugador sin sacrificios humanos</h3>
-            <p>El creador puede activar o desactivar arqueros, elegir Pro mode, límite de goles, tiempo o partido ilimitado. Si esperás como espectador podés mirar desde la tribuna, caminar, saltar con <kbd>Espacio</kbd> y tirar papelitos con <kbd>Q</kbd>. A nadie le gusta ir al arco, por eso hay opción.</p>
+            <h3 data-i18n="help.multiTitle">Multijugador sin sacrificios humanos</h3>
+            <p data-i18n-html="help.multiText">El creador puede activar o desactivar arqueros, elegir Pro mode, límite de goles, tiempo o partido ilimitado. Si esperás como espectador podés mirar desde la tribuna, caminar, saltar con <kbd>Espacio</kbd> y tirar papelitos con <kbd>Q</kbd>. A nadie le gusta ir al arco, por eso hay opción.</p>
           </article>
 
           <article class="how-to-card how-to-card-text">
             <span class="how-to-number">05</span>
-            <h3>Atajos útiles</h3>
-            <p><kbd>M</kbd> activa o apaga música o ambiente. <kbd>+</kbd> y <kbd>-</kbd> ajustan su volumen. <kbd>Esc</kbd> vuelve al menú en entrenamiento y abre o cierra la sala durante un partido online.</p>
+            <h3 data-i18n="help.shortcutsTitle">Atajos útiles</h3>
+            <p data-i18n-html="help.shortcutsText"><kbd>M</kbd> activa o apaga música o ambiente. <kbd>+</kbd> y <kbd>-</kbd> ajustan su volumen. <kbd>Esc</kbd> vuelve al menú en entrenamiento y abre o cierra la sala durante un partido online.</p>
           </article>
 
           <article class="how-to-card how-to-card-text">
             <span class="how-to-number">06</span>
-            <h3>Desde el celular</h3>
-            <p>Usá el joystick y los botones táctiles. Para jugar más cómodo, girá el teléfono y usalo en posición horizontal. Los controles quedan cerca de ambos pulgares.</p>
+            <h3 data-i18n="help.mobileTitle">Desde el celular</h3>
+            <p data-i18n="help.mobileText">Usá el joystick y los botones táctiles. Para jugar más cómodo, girá el teléfono y usalo en posición horizontal. Los controles quedan cerca de ambos pulgares.</p>
           </article>
 
           <article class="how-to-card how-to-card-text">
             <span class="how-to-number">07</span>
-            <h3>Sprint limitado</h3>
-            <p>Cuando la sala usa Sprint limitado, tenes 3 segundos de carrera rapida. Al vaciar la barra espera 2 segundos y luego tarda 5 segundos en recargarse. Podes volver a usarla mientras se esta llenando. El creador puede desactivar esta regla desde la Room.</p>
+            <h3 data-i18n="help.sprintTitle">Sprint limitado</h3>
+            <p data-i18n="help.sprintText">Cuando la sala usa Sprint limitado, tenés 3 segundos de aceleración. Al vaciar la barra, esperá 2 segundos y luego tarda 5 segundos en recargarse. Podés volver a usarla mientras se está llenando. El creador puede desactivar esta regla desde la sala.</p>
           </article>
         </div>
       </section>
@@ -293,10 +298,10 @@
 
     <div id="roomClosedDialog" class="identity-dialog" hidden>
       <section class="identity-panel room-closed-panel" role="alertdialog" aria-modal="true" aria-labelledby="roomClosedTitle">
-        <strong id="roomClosedTitle">La sala se cerró</strong>
-        <p id="roomClosedMessage">El creador de la sala salió.</p>
+        <strong id="roomClosedTitle" data-i18n="closed.title">La sala se cerró</strong>
+        <p id="roomClosedMessage" data-i18n="closed.hostLeft">El creador de la sala salió.</p>
         <div class="identity-actions">
-          <button id="closeRoomNoticeBtn" class="primary-button small-button" type="button">Entendido</button>
+          <button id="closeRoomNoticeBtn" class="primary-button small-button" type="button" data-i18n="common.understood">Entendido</button>
         </div>
       </section>
     </div>
@@ -305,15 +310,15 @@
       <section class="logs-panel" role="dialog" aria-modal="true" aria-labelledby="logsTitle">
         <header class="logs-header">
           <div>
-            <span class="menu-rooms-kicker">Desde el primer prototipo</span>
-            <h2 id="logsTitle">Historial de mejoras</h2>
+            <span class="menu-rooms-kicker" data-i18n="logs.kicker">Desde el primer prototipo</span>
+            <h2 id="logsTitle" data-i18n="logs.title">Historial de mejoras</h2>
           </div>
           <button id="closeLogsBtn" class="icon-button" type="button" aria-label="Cerrar historial">X</button>
         </header>
         <iframe
           class="logs-content"
           src="./HISTORIAL_DE_MEJORAS_NO_PAYNE_NO_GAIN.txt"
-          title="Historial de mejoras de Futbol World Cup"
+          title="Historial de mejoras de FOOTBALL WORLD CUP"
         ></iframe>
       </section>
     </div>

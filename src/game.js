@@ -11,6 +11,7 @@ const logsBtn = document.querySelector("#logsBtn");
 const logsDialog = document.querySelector("#logsDialog");
 const closeLogsBtn = document.querySelector("#closeLogsBtn");
 const musicToggleBtn = document.querySelector("#musicToggleBtn");
+const languageToggleBtn = document.querySelector("#languageToggleBtn");
 const multiplayerBtn = document.querySelector("#multiplayerBtn");
 const proModeToggle = document.querySelector("#proModeToggle");
 const againBtn = document.querySelector("#againBtn");
@@ -83,29 +84,291 @@ const touchShotBtn = document.querySelector("#touchShotBtn");
 let spectatorNotice;
 let acknowledgedSpectatorSignature = "";
 
+const translations = {
+  es: {
+    "menu.tagline": "Entrena, arma tu equipo y conquista la cancha.",
+    "menu.eyebrow": "Fútbol sin fronteras",
+    "menu.proDescription": "Pelota con colisión clásica",
+    "menu.training": "Entrenar",
+    "menu.howTo": "Cómo jugar",
+    "menu.multiplayer": "Multijugador",
+    "menu.onlineMatches": "Partidas online",
+    "menu.createMatch": "Crear partida",
+    "menu.logs": "Historial",
+    "common.back": "Volver",
+    "common.menu": "Menú",
+    "common.cancel": "Cancelar",
+    "common.continue": "Continuar",
+    "common.understood": "Entendido",
+    "server.reconnect": "Reconectar",
+    "server.connect": "Conectar",
+    "server.label": "Servidor",
+    "server.connecting": "Conectando...",
+    "server.online": "Online",
+    "server.disconnected": "Servidor desconectado",
+    "server.closed": "Sala cerrada por el creador",
+    "room.room": "Sala",
+    "room.players": "Jugadores",
+    "room.link": "Enlace",
+    "room.leave": "Salir",
+    "room.timeLimit": "Tiempo",
+    "room.unlimited": "Ilimitado",
+    "room.scoreLimit": "Límite de goles",
+    "room.keepers": "Arqueros",
+    "room.limitedSprint": "Sprint limitado",
+    "room.stadium": "Estadio",
+    "room.classic": "Clásico",
+    "room.pick": "Elegir",
+    "room.start": "Iniciar partido",
+    "room.auto": "Auto",
+    "room.random": "Azar",
+    "room.reset": "Reiniciar",
+    "room.watch": "Mirar partido",
+    "room.backToGame": "Volver al partido",
+    "room.waiting": "Esperando un nuevo partido",
+    "room.lock": "Bloquear",
+    "room.unlock": "Desbloquear",
+    "team.red": "Rojo",
+    "team.blue": "Azul",
+    "team.spectators": "Espectadores",
+    "hud.mode": "Modo",
+    "hud.goals": "Goles",
+    "hud.mystique": "Mística",
+    "controls.camera": "Cámara",
+    "controls.ambience": "Ambiente",
+    "controls.highPass": "Pase alto",
+    "controls.shot": "Remate",
+    "controls.pass": "Pase",
+    "controls.confetti": "Papelitos",
+    "controls.jump": "Saltar",
+    "identity.title": "Tu nombre",
+    "identity.name": "Nombre",
+    "identity.placeholder": "PONÉ TU NOMBRE ACÁ",
+    "identity.roomName": "Nombre de la sala",
+    "identity.playerCount": "Cantidad de jugadores",
+    "identity.create": "Crear partida",
+    "identity.join": "Entrar a {room}",
+    "identity.joinMatch": "Entrar a la partida",
+    "help.kicker": "Manual de cancha",
+    "help.enterTitle": "Entrá a la cancha",
+    "help.enterText": "Elegí Entrenamiento para practicar o entrá a una sala online. En multijugador: elegí una sala o creá la tuya, escribí tu nombre, acomodá los jugadores y presioná Iniciar partido.",
+    "help.ballTitle": "Pelota y remates",
+    "help.ballText": "<kbd>Q</kbd> hace un pase alto, <kbd>E</kbd> un pase y <kbd>Espacio</kbd> remata. Mantené Espacio para cargar potencia: aumenta la velocidad y la altura, pero si te excedés la pelota puede pasar sobre el travesaño.",
+    "help.movementTitle": "Movimiento y cámaras",
+    "help.movementText": "Movete con flechas o <kbd>WASD</kbd>. Mantené <kbd>Shift</kbd> para usar sprint y tocá <kbd>C</kbd> para alternar entre tercera persona y cámara lateral. <kbd>P</kbd> cambia Pro mode durante el entrenamiento.",
+    "help.multiTitle": "Multijugador sin sacrificios humanos",
+    "help.multiText": "El creador puede activar o desactivar arqueros, elegir Pro mode, límite de goles, tiempo o partido ilimitado. Si esperás como espectador podés mirar desde la tribuna, caminar, saltar con <kbd>Espacio</kbd> y tirar papelitos con <kbd>Q</kbd>. A nadie le gusta ir al arco, por eso hay opción.",
+    "help.shortcutsTitle": "Atajos útiles",
+    "help.shortcutsText": "<kbd>M</kbd> activa o apaga música o ambiente. <kbd>+</kbd> y <kbd>-</kbd> ajustan su volumen. <kbd>Esc</kbd> vuelve al menú en entrenamiento y abre o cierra la sala durante un partido online.",
+    "help.mobileTitle": "Desde el celular",
+    "help.mobileText": "Usá el joystick y los botones táctiles. Para jugar más cómodo, girá el teléfono y usalo en posición horizontal. Los controles quedan cerca de ambos pulgares.",
+    "help.sprintTitle": "Sprint limitado",
+    "help.sprintText": "Cuando la sala usa Sprint limitado, tenés 3 segundos de aceleración. Al vaciar la barra, esperá 2 segundos y luego tarda 5 segundos en recargarse. Podés volver a usarla mientras se está llenando. El creador puede desactivar esta regla desde la sala.",
+    "closed.title": "La sala se cerró",
+    "closed.hostLeft": "El creador de la sala salió.",
+    "closed.hostDisconnected": "El creador cerró el juego o perdió la conexión.",
+    "logs.kicker": "Desde el primer prototipo",
+    "logs.title": "Historial de mejoras",
+    "end.final": "Final del partido",
+    "end.champions": "Campeones del mundo",
+    "end.description": "La cancha se rinde, cae papel picado y el estadio festeja.",
+    "end.playAgain": "Jugar de vuelta",
+    "end.close": "Cerrar",
+    "list.loading": "Recuperando salas creadas...",
+    "list.error": "No pudimos recuperar las salas. Revisá el engranaje.",
+    "list.empty": "No hay salas creadas todavía.",
+    "music.off": "Música: OFF",
+    "music.volume": "Música: {value}%",
+    "notice.spectators": "Hay jugadores en espera",
+    "game.training": "Entrenamiento",
+    "game.openRoom": "Sala abierta: acomodando equipos",
+    "game.online": "Multijugador online",
+    "game.reconnecting": "Reconectando...",
+    "game.recovered": "Conexión recuperada",
+    "game.unlimited": "Ilimitado",
+    "game.kickoff": "Saque desde el centro",
+    "game.kickoffTeam": "Saca {team} desde el centro",
+    "game.unlock": "MODO LIBRE DESBLOQUEADO",
+    "game.unlockHint": "Los límites desaparecieron. Hay algo oculto bajo la tribuna",
+    "game.keeperClear": "El arquero le saca la pelota de los pies",
+    "game.keeperSave": "El arquero mete las manos y la pelota rebota",
+    "game.ballFar": "La pelota todavía queda lejos",
+    "game.ballFarMulti": "La pelota queda lejos. El intento fue emocional",
+    "game.cameraBroadcast": "Cámara clásica activada",
+    "game.cameraThird": "Cámara en tercera persona activada",
+    "game.proOn": "Pro mode activado",
+    "game.proOff": "No Pro: balón magnético",
+    "game.goal": "GOOOOOOL",
+    "game.goalRed": "GOOOL DE ROJO",
+    "game.goalBlue": "GOOOL DE AZUL",
+    "game.goalMoment": "GOOOL. La física también quiso entrar",
+    "game.goalTeamMoment": "{team} mete gol y el estadio entiende todo",
+    "game.draw": "EMPATE",
+    "game.redWon": "GANÓ ROJO",
+    "game.blueWon": "GANÓ AZUL",
+    "game.chargedShot": "Remate cargado: +{percent}%",
+    "game.ambienceVolume": "Ambiente {value}%",
+    "aria.mainMenu": "Menú principal",
+    "aria.multiplayerMatches": "Partidas multijugador",
+    "aria.serverSettings": "Configurar servidor",
+    "aria.roomLobby": "Sala de espera",
+    "aria.game": "Juego",
+    "aria.touchControls": "Controles táctiles",
+    "aria.sprintEnergy": "Energía de sprint",
+  },
+  en: {
+    "menu.tagline": "Train, build your team and conquer the pitch.",
+    "menu.eyebrow": "Football without borders",
+    "menu.proDescription": "Classic ball collision",
+    "menu.training": "Training",
+    "menu.howTo": "How to play",
+    "menu.multiplayer": "Multiplayer",
+    "menu.onlineMatches": "Online matches",
+    "menu.createMatch": "Create match",
+    "menu.logs": "Logs",
+    "common.back": "Back",
+    "common.menu": "Menu",
+    "common.cancel": "Cancel",
+    "common.continue": "Continue",
+    "common.understood": "Got it",
+    "server.reconnect": "Reconnect",
+    "server.connect": "Connect",
+    "server.label": "Server",
+    "server.connecting": "Connecting...",
+    "server.online": "Online",
+    "server.disconnected": "Server disconnected",
+    "server.closed": "Room closed by host",
+    "room.room": "Room",
+    "room.players": "Players",
+    "room.link": "Link",
+    "room.leave": "Leave",
+    "room.timeLimit": "Time limit",
+    "room.unlimited": "Unlimited",
+    "room.scoreLimit": "Score limit",
+    "room.keepers": "Goalkeepers",
+    "room.limitedSprint": "Limited sprint",
+    "room.stadium": "Stadium",
+    "room.classic": "Classic",
+    "room.pick": "Pick",
+    "room.start": "Start game",
+    "room.auto": "Auto",
+    "room.random": "Random",
+    "room.reset": "Reset",
+    "room.watch": "Watch match",
+    "room.backToGame": "Back to game",
+    "room.waiting": "Waiting for a new game",
+    "room.lock": "Lock",
+    "room.unlock": "Unlock",
+    "team.red": "Red",
+    "team.blue": "Blue",
+    "team.spectators": "Spectators",
+    "hud.mode": "Mode",
+    "hud.goals": "Goals",
+    "hud.mystique": "Mystique",
+    "controls.camera": "Camera",
+    "controls.ambience": "Ambience",
+    "controls.highPass": "High pass",
+    "controls.shot": "Shoot",
+    "controls.pass": "Pass",
+    "controls.confetti": "Confetti",
+    "controls.jump": "Jump",
+    "identity.title": "Your name",
+    "identity.name": "Name",
+    "identity.placeholder": "ENTER YOUR NAME",
+    "identity.roomName": "Room name",
+    "identity.playerCount": "Number of players",
+    "identity.create": "Create match",
+    "identity.join": "Join {room}",
+    "identity.joinMatch": "Join match",
+    "help.kicker": "Pitch manual",
+    "help.enterTitle": "Enter the pitch",
+    "help.enterText": "Choose Training to practice or enter an online room. In multiplayer: choose a room or create yours, enter your name, arrange the players and press Start game.",
+    "help.ballTitle": "Ball and shooting",
+    "help.ballText": "<kbd>Q</kbd> makes a high pass, <kbd>E</kbd> passes and <kbd>Space</kbd> shoots. Hold Space to charge power: speed and height increase, but too much power can send the ball over the crossbar.",
+    "help.movementTitle": "Movement and cameras",
+    "help.movementText": "Move with the arrows or <kbd>WASD</kbd>. Hold <kbd>Shift</kbd> to sprint and press <kbd>C</kbd> to switch between third-person and broadcast cameras. <kbd>P</kbd> changes Pro mode during Training.",
+    "help.multiTitle": "Multiplayer without human sacrifice",
+    "help.multiText": "The host can enable goalkeepers, choose Pro mode, set a score or time limit, or make the match unlimited. Spectators can watch from the stands, walk, jump with <kbd>Space</kbd> and throw confetti with <kbd>Q</kbd>. Nobody likes playing goalkeeper, so it is optional.",
+    "help.shortcutsTitle": "Useful shortcuts",
+    "help.shortcutsText": "<kbd>M</kbd> toggles music or ambience. <kbd>+</kbd> and <kbd>-</kbd> adjust volume. <kbd>Esc</kbd> returns to the menu in Training and opens or closes the room during an online match.",
+    "help.mobileTitle": "On mobile",
+    "help.mobileText": "Use the joystick and touch buttons. Rotate your phone to landscape for a more comfortable layout with controls close to both thumbs.",
+    "help.sprintTitle": "Limited sprint",
+    "help.sprintText": "With Limited sprint enabled, you have 3 seconds of acceleration. When empty, the bar waits 2 seconds and then takes 5 seconds to recharge. You can sprint again while it refills. The host can disable this rule in the room.",
+    "closed.title": "Room closed",
+    "closed.hostLeft": "The room host left.",
+    "closed.hostDisconnected": "The host closed the game or lost connection.",
+    "logs.kicker": "Since the first prototype",
+    "logs.title": "Improvement log",
+    "end.final": "Full time",
+    "end.champions": "World champions",
+    "end.description": "The pitch surrenders, confetti falls and the stadium celebrates.",
+    "end.playAgain": "Play again",
+    "end.close": "Close",
+    "list.loading": "Retrieving created rooms...",
+    "list.error": "Rooms could not be retrieved. Check the settings.",
+    "list.empty": "No rooms have been created yet.",
+    "music.off": "Music: OFF",
+    "music.volume": "Music: {value}%",
+    "notice.spectators": "Players are waiting",
+    "game.training": "Training",
+    "game.openRoom": "Room open: arranging teams",
+    "game.online": "Online multiplayer",
+    "game.reconnecting": "Reconnecting...",
+    "game.recovered": "Connection restored",
+    "game.unlimited": "Unlimited",
+    "game.kickoff": "Kickoff from the center",
+    "game.kickoffTeam": "{team} takes the kickoff",
+    "game.unlock": "FREE ROAM UNLOCKED",
+    "game.unlockHint": "The boundaries are gone. Something is hidden under the stands",
+    "game.keeperClear": "The goalkeeper kicks the ball away",
+    "game.keeperSave": "The goalkeeper gets a hand to it",
+    "game.ballFar": "The ball is still too far away",
+    "game.ballFarMulti": "The ball is too far away. The effort was emotional",
+    "game.cameraBroadcast": "Broadcast camera enabled",
+    "game.cameraThird": "Third-person camera enabled",
+    "game.proOn": "Pro mode enabled",
+    "game.proOff": "No Pro: magnetic ball",
+    "game.goal": "GOOOOOAL",
+    "game.goalRed": "RED SCORES",
+    "game.goalBlue": "BLUE SCORES",
+    "game.goalMoment": "GOAL. Physics wanted in too",
+    "game.goalTeamMoment": "{team} scores and the stadium understands everything",
+    "game.draw": "DRAW",
+    "game.redWon": "RED WINS",
+    "game.blueWon": "BLUE WINS",
+    "game.chargedShot": "Charged shot: +{percent}%",
+    "game.ambienceVolume": "Ambience {value}%",
+    "aria.mainMenu": "Main menu",
+    "aria.multiplayerMatches": "Multiplayer matches",
+    "aria.serverSettings": "Server settings",
+    "aria.roomLobby": "Room lobby",
+    "aria.game": "Game",
+    "aria.touchControls": "Touch controls",
+    "aria.sprintEnergy": "Sprint energy",
+  },
+};
+let currentLanguage = localStorage.getItem("fwcLanguage") === "en" ? "en" : "es";
+const t = (key, vars = {}) => {
+  let value = translations[currentLanguage]?.[key] ?? translations.es[key] ?? key;
+  Object.entries(vars).forEach(([name, replacement]) => {
+    value = value.replaceAll(`{${name}}`, replacement);
+  });
+  return value;
+};
+const localized = (es, en) => currentLanguage === "es" ? es : en;
+
 const matchLength = 180;
 const field = { width: 42, length: 76 };
 const keys = new Set();
-const trainingLines = [
-  "El entrenamiento empieza a ponerse serio",
-  "La pelota firmo contrato con el gol",
-  "El rival se acerca y reconsidera su vida",
-  "El delantero no corre: el pasto se mueve",
-  "La practica ya parece una final",
-  "El arquero ya esta mirando al juez",
-];
-const multiplayerLines = [
-  "La defensa acaba de presentar una queja formal",
-  "Ese pase tenia direccion postal",
-  "El cesped pide tiempo muerto",
-  "Alguien revise si la pelota tiene licencia",
-  "La tactica fue improvisar con absoluta confianza",
-  "El arquero esta actualizando el curriculum",
-  "Se juega como se puede y se festeja como se quiere",
-  "La tribuna vio algo. Nadie sabe exactamente que",
-  "El VAR decidio mirar para otro lado",
-  "Hay mas fe que marca personal",
-];
+const trainingLines = {
+  es: ["El entrenamiento empieza a ponerse serio", "La pelota firmó contrato con el gol", "El rival se acerca y reconsidera su vida", "El delantero no corre: el pasto se mueve", "La práctica ya parece una final", "El arquero ya está mirando al juez"],
+  en: ["Training is getting serious", "The ball signed a contract with the goal", "The opponent approaches and reconsiders everything", "The striker does not run: the grass moves", "Practice already feels like a final", "The goalkeeper is already looking at the referee"],
+};
+const multiplayerLines = {
+  es: ["La defensa acaba de presentar una queja formal", "Ese pase tenía dirección postal", "El césped pide tiempo muerto", "Alguien revise si la pelota tiene licencia", "La táctica fue improvisar con absoluta confianza", "El arquero está actualizando el currículum", "Se juega como se puede y se festeja como se quiere", "La tribuna vio algo. Nadie sabe exactamente qué", "El VAR decidió mirar para otro lado", "Hay más fe que marca personal"],
+  en: ["The defense has filed a formal complaint", "That pass had a postal address", "The grass is asking for a timeout", "Someone check whether the ball has a license", "The tactic was absolute confidence and improvisation", "The goalkeeper is updating the résumé", "Play however you can, celebrate however you want", "The crowd saw something. Nobody knows exactly what", "VAR decided to look the other way", "There is more faith than man-marking"],
+};
 const modePhrase = (trainingText, multiplayerText) => multiplayerMode ? multiplayerText : trainingText;
 const defaultServerUrl = "https://futbol-fun-server.onrender.com";
 const clientPlayerId = sessionStorage.getItem("npgClientId")
@@ -272,21 +535,70 @@ function showScreen(active) {
   active.classList.add("is-active");
 }
 
+function applyLanguage() {
+  document.documentElement.lang = currentLanguage;
+  document.title = "FOOTBALL WORLD CUP";
+  document.querySelectorAll("[data-i18n]").forEach((element) => {
+    element.textContent = t(element.dataset.i18n);
+  });
+  document.querySelectorAll("[data-i18n-html]").forEach((element) => {
+    element.innerHTML = t(element.dataset.i18nHtml);
+  });
+  document.querySelectorAll("[data-i18n-placeholder]").forEach((element) => {
+    element.placeholder = t(element.dataset.i18nPlaceholder);
+  });
+  document.querySelectorAll("[data-i18n-aria-label]").forEach((element) => {
+    element.setAttribute("aria-label", t(element.dataset.i18nAriaLabel));
+  });
+  document.querySelectorAll("[data-i18n-title]").forEach((element) => {
+    element.title = t(element.dataset.i18nTitle);
+  });
+  languageToggleBtn?.classList.toggle("is-english", currentLanguage === "en");
+  languageToggleBtn?.setAttribute("aria-label", currentLanguage === "es" ? "Cambiar a inglés" : "Switch to Spanish");
+  updateMusicButton();
+  updateConnectionUi();
+  if (serverStatus) {
+    serverStatus.textContent = socket?.connected
+      ? `Online ${socket.id.slice(0, 4)}`
+      : (roomListState === "error" ? localized("Sin conexión", "No connection") : t("server.connecting"));
+  }
+  updateGameplayControlHints();
+  if (multiplayerMode && scoreEl) {
+    scoreEl.textContent = `${t("team.red")} ${redScore} - ${blueScore} ${t("team.blue")}`;
+  }
+  renderRoomList();
+  if (activeRoom) renderRoom();
+  updateSpectatorNotice();
+  if (stadiumScoreTexture) updateStadiumScoreboard();
+  if (roomNameInput && ["Mi partida", "My match"].includes(roomNameInput.value)) {
+    roomNameInput.value = currentLanguage === "es" ? "Mi partida" : "My match";
+  }
+}
+
+function toggleLanguage() {
+  currentLanguage = currentLanguage === "es" ? "en" : "es";
+  localStorage.setItem("fwcLanguage", currentLanguage);
+  applyLanguage();
+}
+
 function ensureSpectatorNotice() {
   if (spectatorNotice) return spectatorNotice;
   spectatorNotice = document.createElement("div");
   spectatorNotice.className = "spectator-notice";
   spectatorNotice.textContent = "!";
-  spectatorNotice.title = "Hay jugadores en espera";
-  spectatorNotice.dataset.tooltip = "Hay jugadores en espera";
+  spectatorNotice.title = t("notice.spectators");
+  spectatorNotice.dataset.tooltip = t("notice.spectators");
   spectatorNotice.setAttribute("role", "status");
-  spectatorNotice.setAttribute("aria-label", "Hay jugadores en espera");
+  spectatorNotice.setAttribute("aria-label", t("notice.spectators"));
   document.body.appendChild(spectatorNotice);
   return spectatorNotice;
 }
 
 function updateSpectatorNotice() {
   const notice = ensureSpectatorNotice();
+  notice.title = t("notice.spectators");
+  notice.dataset.tooltip = t("notice.spectators");
+  notice.setAttribute("aria-label", t("notice.spectators"));
   const spectatorSignature = activeRoom?.players
     ?.filter((roomPlayer) => roomPlayer.team === "spectators")
     .map((roomPlayer) => roomPlayer.id)
@@ -347,7 +659,7 @@ function stopAudio(audio) {
 function updateMusicButton() {
   if (!musicToggleBtn) return;
   const percentage = Math.round(menuMusicVolume * 100);
-  musicToggleBtn.textContent = menuMusicMuted ? "Musica: OFF" : `Musica: ${percentage}%`;
+  musicToggleBtn.textContent = menuMusicMuted ? t("music.off") : t("music.volume", { value: percentage });
 }
 
 function adjustContextVolume(direction) {
@@ -358,7 +670,7 @@ function adjustContextVolume(direction) {
     stadiumLoop.volume = stadiumSoundVolume;
     goalSound.volume = Math.min(1, stadiumSoundVolume * 2.7);
     localStorage.setItem("npgStadiumVolume", String(stadiumSoundVolume));
-    momentEl.textContent = `Ambiente ${Math.round(stadiumSoundVolume * 100)}%`;
+    momentEl.textContent = t("game.ambienceVolume", { value: Math.round(stadiumSoundVolume * 100) });
     phraseTimer = 2;
     return;
   }
@@ -451,7 +763,7 @@ function updateConnectionUi() {
   const connected = Boolean(onlineMode && socket?.connected);
   if (createRoomBtn) createRoomBtn.disabled = !connected;
   createRoomBtn?.classList.toggle("is-loading", !connected);
-  if (connectServerBtn) connectServerBtn.textContent = connected ? "Reconectar" : "Conectar";
+  if (connectServerBtn) connectServerBtn.textContent = connected ? t("server.reconnect") : t("server.connect");
 }
 
 function getEnteredPlayerName() {
@@ -507,7 +819,7 @@ function joinOnlineRoom(roomId) {
         showRoomLobbyPreview();
       }
     } else {
-      updateServerStatus(response?.error || "No pude entrar");
+      updateServerStatus(response?.error || localized("No pude entrar", "Could not join"));
     }
   });
 }
@@ -529,13 +841,13 @@ function loadSocketClient(url) {
 async function connectOnlineServer() {
   const url = (serverUrlInput.value || socketServerUrl || "").trim().replace(/\/$/, "");
   if (!url) {
-    updateServerStatus("Falta URL");
+    updateServerStatus(localized("Falta la URL", "Server URL required"));
     return;
   }
   localStorage.setItem("npgServerUrl", url);
   socketServerUrl = url;
   roomListState = "loading";
-  updateServerStatus("Conectando...");
+  updateServerStatus(t("server.connecting"));
   updateConnectionUi();
   renderRoomList();
 
@@ -570,7 +882,7 @@ async function connectOnlineServer() {
           if (multiplayerMode && response.room.matchState) {
             applyAuthoritativeSnapshot(response.room.matchState, true);
             syncMultiplayerTeamsToField({ preserveLocal: true });
-            momentEl.textContent = "Conexion recuperada";
+            momentEl.textContent = t("game.recovered");
             phraseTimer = 2;
           } else if (roomScreen.classList.contains("is-active")) {
             renderRoom();
@@ -594,18 +906,18 @@ async function connectOnlineServer() {
       touchSprintActive = false;
       resetTouchStick();
       if (multiplayerMode) {
-        momentEl.textContent = "Reconectando...";
+        momentEl.textContent = t("game.reconnecting");
         phraseTimer = 999;
       }
       roomListState = "loading";
-      updateServerStatus("Reconectando...");
+      updateServerStatus(t("game.reconnecting"));
       updateConnectionUi();
       renderRoomList();
     });
     socket.on("connect_error", () => {
       onlineMode = false;
       roomListState = "error";
-      updateServerStatus("Sin conexión. Revisa el engranaje.");
+      updateServerStatus(localized("Sin conexión. Revisá el engranaje.", "No connection. Check the settings."));
       updateConnectionUi();
       renderRoomList();
     });
@@ -692,7 +1004,7 @@ async function connectOnlineServer() {
     });
   } catch {
     onlineMode = false;
-    updateServerStatus("Error servidor");
+    updateServerStatus(localized("Error del servidor", "Server error"));
     updateConnectionUi();
     renderRoomList();
   }
@@ -794,10 +1106,10 @@ function updateStadiumScoreboard() {
   ctx.fillText(multiplayerMode ? `${redScore} - ${blueScore}` : `${score} - 0`, 256, 124);
   ctx.font = "900 24px Arial";
   ctx.fillStyle = "#7cffb2";
-  ctx.fillText(multiplayerMode ? "ROJO        AZUL" : "FUTBOL WORLD CUP", 256, 44);
+  ctx.fillText(multiplayerMode ? `${t("team.red").toUpperCase()}        ${t("team.blue").toUpperCase()}` : "FOOTBALL WORLD CUP", 256, 44);
   ctx.font = "800 28px Arial";
   ctx.fillStyle = "#dce8ed";
-  ctx.fillText(stadiumTimerText || (multiplayerMode ? "00:00" : "ENTRENAMIENTO"), 256, 204);
+  ctx.fillText(stadiumTimerText || (multiplayerMode ? "00:00" : t("game.training").toUpperCase()), 256, 204);
   stadiumScoreTexture.needsUpdate = true;
 }
 
@@ -1363,11 +1675,16 @@ function unlockTrainingFreeMode() {
   if (museumGroup) museumGroup.visible = true;
   if (trainingTunnelSeal) trainingTunnelSeal.visible = false;
   if (trainingTunnelCover) trainingTunnelCover.visible = false;
-  goalBanner.textContent = "MODO LIBRE DESBLOQUEADO";
-  goalBanner.classList.remove("show");
+  goalBanner.textContent = t("game.unlock");
+  goalBanner.classList.remove("show", "final-result", "training-unlock");
   void goalBanner.offsetWidth;
-  goalBanner.classList.add("show");
-  momentEl.textContent = "Los limites desaparecieron. Hay algo oculto bajo la tribuna";
+  goalBanner.classList.add("show", "training-unlock");
+  setTimeout(() => {
+    if (goalBanner.classList.contains("training-unlock")) {
+      goalBanner.classList.remove("show", "training-unlock");
+    }
+  }, 4700);
+  momentEl.textContent = t("game.unlockHint");
 }
 
 function addField({ trainingMode = false } = {}) {
@@ -2295,7 +2612,7 @@ function applyAuthoritativeSnapshot(snapshot = {}, immediate = false) {
   if (snapshot.scores) {
     redScore = Number(snapshot.scores.red) || 0;
     blueScore = Number(snapshot.scores.blue) || 0;
-    scoreEl.textContent = `Rojo ${redScore} - ${blueScore} Azul`;
+    scoreEl.textContent = `${t("team.red")} ${redScore} - ${blueScore} ${t("team.blue")}`;
     updateStadiumScoreboard();
     if (activeRoom) activeRoom.scores = { red: redScore, blue: blueScore };
   }
@@ -2404,7 +2721,7 @@ function applyNetworkScore(payload = {}) {
   if (!multiplayerMode || !payload.scores) return;
   redScore = Number(payload.scores.red) || 0;
   blueScore = Number(payload.scores.blue) || 0;
-  scoreEl.textContent = `Rojo ${redScore} - ${blueScore} Azul`;
+  scoreEl.textContent = `${t("team.red")} ${redScore} - ${blueScore} ${t("team.blue")}`;
   updateStadiumScoreboard();
 
   const scoringTeam = payload.scoringTeam;
@@ -2413,11 +2730,11 @@ function applyNetworkScore(payload = {}) {
     goalSound.currentTime = 0;
     safePlay(goalSound);
   }
-  goalBanner.textContent = scoringTeam === "blue" ? "GOOOL DE AZUL" : "GOOOL DE ROJO";
-  goalBanner.classList.remove("show");
+  goalBanner.textContent = scoringTeam === "blue" ? t("game.goalBlue") : t("game.goalRed");
+  goalBanner.classList.remove("show", "training-unlock");
   void goalBanner.offsetWidth;
   goalBanner.classList.add("show");
-  momentEl.textContent = `${scoringTeam === "blue" ? "Azul" : "Rojo"} mete gol y el estadio entiende todo`;
+  momentEl.textContent = t("game.goalTeamMoment", { team: t(`team.${scoringTeam}`) });
   beginKickoffFor(scoringTeam);
   ballControlled = false;
   ballOwner = null;
@@ -2437,7 +2754,7 @@ function applyNetworkScore(payload = {}) {
     if (!ended) {
       resetLocalPlayerForKickoff();
       goalCooldown = 0;
-      momentEl.textContent = "Saque desde el centro";
+      momentEl.textContent = t("game.kickoff");
     }
   }, 950);
 }
@@ -2509,7 +2826,7 @@ function setupGame() {
 
   const localRoomPlayer = getLocalRoomPlayer();
   player = createPlayer(true, multiplayerMode ? localRoomPlayer.team : "neutral");
-  player.userData.name = multiplayerMode ? localRoomPlayer.name : "Jugador";
+  player.userData.name = multiplayerMode ? localRoomPlayer.name : localized("Jugador", "Player");
   player.userData.team = multiplayerMode ? localRoomPlayer.team : "red";
   player.userData.isLocal = true;
   player.visible = !multiplayerMode
@@ -2608,12 +2925,12 @@ function setupGame() {
   cameraMode = lobbyPreviewMode || (multiplayerMode && !player.visible) ? "broadcast" : "third";
   broadcastFocusZ = ball.position.z;
   phraseTimer = 0;
-  scoreEl.textContent = multiplayerMode ? "Rojo 0 - 0 Azul" : "0";
+  scoreEl.textContent = multiplayerMode ? `${t("team.red")} 0 - 0 ${t("team.blue")}` : "0";
   updateStadiumScoreboard();
   updateTimer();
   momentEl.textContent = lobbyPreviewMode
-    ? "Room abierta: acomodando equipos"
-    : (multiplayerMode ? "Multijugador online" : "Modo entrenamiento");
+    ? t("game.openRoom")
+    : (multiplayerMode ? t("game.online") : t("game.training"));
   if (roomGameBtn) roomGameBtn.style.display = multiplayerMode ? "block" : "none";
   backMenuBtn?.classList.toggle("with-room-button", multiplayerMode);
   setupPlayerTags();
@@ -2625,7 +2942,7 @@ function setupGame() {
 function updateTimer() {
   let nextTimerText;
   if (lobbyPreviewMode) {
-    timerEl.textContent = "Room";
+    timerEl.textContent = t("room.room");
     nextTimerText = "SALA";
     if (stadiumTimerText !== nextTimerText) {
       stadiumTimerText = nextTimerText;
@@ -2634,7 +2951,7 @@ function updateTimer() {
     return;
   }
   if (!multiplayerMode) {
-    timerEl.textContent = "Entrenamiento";
+    timerEl.textContent = t("game.training");
     nextTimerText = "ENTRENAMIENTO";
     if (stadiumTimerText !== nextTimerText) {
       stadiumTimerText = nextTimerText;
@@ -2644,7 +2961,7 @@ function updateTimer() {
   }
   if (activeRoom?.settings?.unlimited) {
     remaining = Infinity;
-    timerEl.textContent = "Ilimitado";
+    timerEl.textContent = t("game.unlimited");
     nextTimerText = "TIEMPO ILIMITADO";
     if (stadiumTimerText !== nextTimerText) {
       stadiumTimerText = nextTimerText;
@@ -2682,10 +2999,10 @@ function setupPlayerTags() {
   units.forEach((unit) => {
     const label = document.createElement("div");
     label.className = `name-tag ${unit.userData.team === "blue" ? "is-blue" : "is-red"}`;
-    label.textContent = unit.userData.name || "player";
+    label.textContent = unit.userData.name || localized("jugador", "player");
     const pointer = document.createElement("div");
     pointer.className = `offscreen-pointer ${unit.userData.team === "blue" ? "is-blue" : "is-red"}`;
-    pointer.innerHTML = `<span></span><strong>${unit.userData.name || "player"}</strong>`;
+    pointer.innerHTML = `<span></span><strong>${unit.userData.name || localized("jugador", "player")}</strong>`;
     playerOverlay.append(label, pointer);
     playerTags.push({ unit, label, pointer });
   });
@@ -2908,22 +3225,22 @@ function tryLocalKeeperClear(state) {
   state.mode = "clear";
   state.diveTimer = 0.42;
   state.clearanceCooldown = 1.15;
-  momentEl.textContent = "El arquero le saca la pelota de los pies";
+  momentEl.textContent = t("game.keeperClear");
   return true;
 }
 
 function kickBall(power, label, chargeRatio = 0, liftPower = 0, soundKind = "shot") {
   if (!player || !player.visible || !ball || goalCooldown > 0) return;
   if (multiplayerMode && (!socket?.connected || !networkSessionReady)) {
-    momentEl.textContent = "Reconectando...";
+    momentEl.textContent = t("game.reconnecting");
     return;
   }
   if (multiplayerMode && getLocalRoomPlayer()?.team === "spectators") return;
   const distance = player.position.distanceTo(ball.position);
   if (distance > 3.2) {
     momentEl.textContent = modePhrase(
-      "La pelota todavia queda lejos",
-      "La pelota queda lejos. El intento fue emocional"
+      t("game.ballFar"),
+      t("game.ballFarMulti")
     );
     return;
   }
@@ -2931,7 +3248,7 @@ function kickBall(power, label, chargeRatio = 0, liftPower = 0, soundKind = "sho
   const dir = ballDirectionFromPlayer();
   const localTeam = player.userData?.team || getLocalRoomPlayer()?.team;
   if (kickoffLocked && multiplayerMode && (localTeam !== kickoffTeam || getLocalPlayerId() !== getKickoffPlayerId())) {
-    momentEl.textContent = `Saca ${kickoffTeam === "red" ? "Rojo" : "Azul"} desde el centro`;
+    momentEl.textContent = t("game.kickoffTeam", { team: t(`team.${kickoffTeam}`) });
     return;
   }
   releaseKickoffIfNeeded(localTeam, getLocalPlayerId());
@@ -2983,8 +3300,8 @@ function releaseChargedShot() {
   const liftPower = 2.2 + chargeRatio * 7.0;
   const percent = Math.round(chargeRatio * 80);
   const label = chargeRatio === 0
-    ? modePhrase("Remate fuerte hacia el eje", "Remate fuerte y decisiones cuestionables")
-    : `Remate cargado: +${percent}%`;
+    ? localized("Remate fuerte hacia el eje", "Power shot along the aim line")
+    : t("game.chargedShot", { percent });
   kickBall(power, label, chargeRatio, liftPower, "shot");
 }
 
@@ -3002,8 +3319,8 @@ function toggleCameraMode() {
   cameraMode = cameraMode === "third" ? "broadcast" : "third";
   if (cameraMode === "broadcast" && ball) broadcastFocusZ = ball.position.z;
   momentEl.textContent = cameraMode === "broadcast"
-    ? "Camara clasica activada"
-    : "Camara tercera persona activada";
+    ? t("game.cameraBroadcast")
+    : t("game.cameraThird");
 }
 
 function updateGameplayControlHints() {
@@ -3013,27 +3330,27 @@ function updateGameplayControlHints() {
     && getLocalRoomPlayer()?.team === "spectators";
   controlsEl.innerHTML = spectator
     ? `
-      <span>W/S: caminar</span>
-      <span>Izq/Der: girar</span>
-      <span>Shift: correr</span>
-      <span>Espacio: saltar</span>
-      <span>Q: papelitos</span>
-      <span>Room: volver a la sala</span>
+      <span>${currentLanguage === "es" ? "W/S: caminar" : "W/S: walk"}</span>
+      <span>${currentLanguage === "es" ? "Izq/Der: girar" : "Left/Right: turn"}</span>
+      <span>Shift: sprint</span>
+      <span>${currentLanguage === "es" ? "Espacio: saltar" : "Space: jump"}</span>
+      <span>Q: ${t("controls.confetti").toLowerCase()}</span>
+      <span>${currentLanguage === "es" ? "Sala: volver" : "Room: return"}</span>
     `
     : `
-      <span>Arriba/W: avanzar</span>
-      <span>Izq/Der: girar</span>
-      <span>Shift: correr</span>
-      <span>C: camara</span>
+      <span>${currentLanguage === "es" ? "Arriba/W: avanzar" : "Up/W: move"}</span>
+      <span>${currentLanguage === "es" ? "Izq/Der: girar" : "Left/Right: turn"}</span>
+      <span>Shift: sprint</span>
+      <span>C: ${t("controls.camera").toLowerCase()}</span>
       <span>P: pro mode</span>
-      <span>M: ambiente on/off</span>
-      <span>Q: pase alto</span>
-      <span>E: pase</span>
-      <span>Espacio: remate</span>
+      <span>M: ${t("controls.ambience").toLowerCase()} on/off</span>
+      <span>Q: ${t("controls.highPass").toLowerCase()}</span>
+      <span>E: ${t("controls.pass").toLowerCase()}</span>
+      <span>${currentLanguage === "es" ? "Espacio" : "Space"}: ${t("controls.shot").toLowerCase()}</span>
     `;
-  if (touchSoftBtn) touchSoftBtn.textContent = spectator ? "Papelitos" : "Pase alto";
-  if (touchShotBtn) touchShotBtn.textContent = spectator ? "Saltar" : "Remate";
-  if (touchPassBtn) touchPassBtn.textContent = "Pase";
+  if (touchSoftBtn) touchSoftBtn.textContent = spectator ? t("controls.confetti") : t("controls.highPass");
+  if (touchShotBtn) touchShotBtn.textContent = spectator ? t("controls.jump") : t("controls.shot");
+  if (touchPassBtn) touchPassBtn.textContent = t("controls.pass");
   if (touchPassBtn) touchPassBtn.style.display = spectator ? "none" : "";
   if (touchCameraBtn) touchCameraBtn.style.display = spectator ? "none" : "";
   if (touchProBtn) touchProBtn.style.display = spectator ? "none" : "";
@@ -3048,22 +3365,22 @@ function celebrateGoal(scoringTeam = "training") {
   if (multiplayerMode) {
     if (scoringTeam === "red") redScore += 1;
     if (scoringTeam === "blue") blueScore += 1;
-    scoreEl.textContent = `Rojo ${redScore} - ${blueScore} Azul`;
-    goalBanner.textContent = scoringTeam === "red" ? "GOOOL DE ROJO" : "GOOOL DE AZUL";
+    scoreEl.textContent = `${t("team.red")} ${redScore} - ${blueScore} ${t("team.blue")}`;
+    goalBanner.textContent = scoringTeam === "red" ? t("game.goalRed") : t("game.goalBlue");
     if (isOnlineHost()) socket.emit("match:goal", { scoringTeam });
   } else {
     score += 1;
     scoreEl.textContent = String(score);
-    goalBanner.textContent = "GOOOOOOL";
+    goalBanner.textContent = t("game.goal");
     if (score >= 20) setTimeout(unlockTrainingFreeMode, 900);
   }
   updateStadiumScoreboard();
-  goalBanner.classList.remove("show");
+  goalBanner.classList.remove("show", "training-unlock");
   void goalBanner.offsetWidth;
   goalBanner.classList.add("show");
   momentEl.textContent = multiplayerMode
-    ? `${scoringTeam === "red" ? "Rojo" : "Azul"} mete gol y el estadio entiende todo`
-    : "GOOOL. La fisica tambien quiso entrar";
+    ? t("game.goalTeamMoment", { team: t(`team.${scoringTeam}`) })
+    : t("game.goalMoment");
   if (multiplayerMode) beginKickoffFor(scoringTeam);
   if (goalKeeper) {
     const keeperDive = Math.random() > 0.5 ? -1 : 1;
@@ -3118,7 +3435,7 @@ function celebrateGoal(scoringTeam = "training") {
       networkBallOwnerId = null;
       pendingLocalKickId = null;
       ballMagnetCooldown = 0;
-      momentEl.textContent = "Saque desde el centro";
+      momentEl.textContent = t("game.kickoff");
     }
   }, 950);
 }
@@ -3229,7 +3546,7 @@ function handleKeeperBallCollision(previousBallPosition) {
   ballVerticalVelocity = Math.max(ballVerticalVelocity * 0.18, 0.75);
   ballShotCharge = Math.max(ballShotCharge, 0.35);
   ballControlled = false;
-  momentEl.textContent = "El arquero mete las manos y la pelota rebota";
+  momentEl.textContent = t("game.keeperSave");
   return true;
   }
   return false;
@@ -3792,7 +4109,7 @@ function animateGame() {
   updateTimer();
   phraseTimer -= dt;
   if (phraseTimer <= 0) {
-    const phrases = multiplayerMode ? multiplayerLines : trainingLines;
+    const phrases = (multiplayerMode ? multiplayerLines : trainingLines)[currentLanguage];
     momentEl.textContent = phrases[Math.floor(Math.random() * phrases.length)];
     phraseTimer = 4 + Math.random() * 2;
   }
@@ -3885,9 +4202,9 @@ function startCelebration() {
 }
 
 function showMultiplayerFinalBanner() {
-  let text = "EMPATE";
-  if (redScore > blueScore) text = "GANO ROJO";
-  if (blueScore > redScore) text = "GANO AZUL";
+  let text = t("game.draw");
+  if (redScore > blueScore) text = t("game.redWon");
+  if (blueScore > redScore) text = t("game.blueWon");
   goalBanner.textContent = `${text} ${redScore} - ${blueScore}`;
   goalBanner.classList.remove("show");
   goalBanner.classList.add("final-result");
@@ -3943,12 +4260,12 @@ function handleRoomClosed(payload = {}) {
   selectedPlayerId = null;
   updateSpectatorNotice();
   stopGameAudio();
-  updateServerStatus(socket?.connected ? "Online" : "Room cerrada por el creador");
+  updateServerStatus(socket?.connected ? t("server.online") : t("server.closed"));
   openRooms();
   if (!localWasHost && roomClosedDialog) {
     roomClosedMessage.textContent = payload.reason === "reconnect-timeout"
-      ? "El creador de la sala cerró el juego o perdió la conexión."
-      : "El creador de la sala salió.";
+      ? t("closed.hostDisconnected")
+      : t("closed.hostLeft");
     roomClosedDialog.hidden = false;
   }
 }
@@ -3980,7 +4297,7 @@ function renderRoomList() {
     const empty = document.createElement("div");
     empty.className = "room-empty";
     const text = document.createElement("span");
-    text.textContent = "Recuperando salas creadas...";
+    text.textContent = t("list.loading");
     empty.append(text);
     roomList.appendChild(empty);
     return;
@@ -3988,14 +4305,14 @@ function renderRoomList() {
   if (roomListState === "error") {
     const empty = document.createElement("div");
     empty.className = "room-empty";
-    empty.textContent = "No pudimos recuperar las salas. Revisa el engranaje.";
+    empty.textContent = t("list.error");
     roomList.appendChild(empty);
     return;
   }
   if (multiplayerRooms.length === 0) {
     const empty = document.createElement("div");
     empty.className = "room-empty";
-    empty.textContent = "No hay salas creadas todavía.";
+    empty.textContent = t("list.empty");
     roomList.appendChild(empty);
     return;
   }
@@ -4010,9 +4327,9 @@ function renderRoomList() {
     `;
     row.addEventListener("click", () => {
       if (onlineMode && socket?.connected) {
-        requestPlayerIdentity(`Entrar a ${room.name}`, () => joinOnlineRoom(room.id));
+        requestPlayerIdentity(t("identity.join", { room: room.name }), () => joinOnlineRoom(room.id));
       } else {
-        updateServerStatus("Servidor desconectado");
+        updateServerStatus(t("server.disconnected"));
       }
     });
     roomList.appendChild(row);
@@ -4099,15 +4416,15 @@ function toggleProModeInGame() {
   ballMagnetCooldown = 0.2;
   if (multiplayerMode && roomProModeToggle) roomProModeToggle.checked = proModeEnabled;
   if (!multiplayerMode && proModeToggle) proModeToggle.checked = proModeEnabled;
-  momentEl.textContent = proModeEnabled ? "Pro mode activado" : "No Pro: balon magnetico";
+  momentEl.textContent = proModeEnabled ? t("game.proOn") : t("game.proOff");
 }
 
 function createRoom() {
   if (!onlineMode || !socket?.connected) {
-    updateServerStatus("Servidor desconectado");
+    updateServerStatus(t("server.disconnected"));
     return;
   }
-  requestPlayerIdentity("Crear partida", createOnlineRoom, { includeRoom: true });
+  requestPlayerIdentity(t("identity.create"), createOnlineRoom, { includeRoom: true });
 }
 
 function createOnlineRoom() {
@@ -4118,7 +4435,7 @@ function createOnlineRoom() {
       playerName: onlinePlayerName,
     }, (response) => {
       if (!response?.ok) {
-        updateServerStatus(response?.error || "No pude crear");
+        updateServerStatus(response?.error || localized("No pude crear la sala", "Could not create the room"));
         return;
       }
       activeRoom = response.room;
@@ -4212,10 +4529,10 @@ function renderRoom() {
   renderPlayers(redTeamList, "red");
   renderPlayers(spectatorsList, "spectators");
   renderPlayers(blueTeamList, "blue");
-  lockRoomBtn.textContent = roomLocked ? "Unlock" : "Lock";
+  lockRoomBtn.textContent = roomLocked ? t("room.unlock") : t("room.lock");
   startMultiplayerGameBtn.textContent = canManageRoom
-    ? "Start game"
-    : (matchRunning ? (localIsSpectator ? "Mirar partido" : "Back to game") : "Waiting for a new game");
+    ? t("room.start")
+    : (matchRunning ? (localIsSpectator ? t("room.watch") : t("room.backToGame")) : t("room.waiting"));
   startMultiplayerGameBtn.disabled = !canManageRoom && !matchRunning;
   startMultiplayerGameBtn.style.display = "";
   startMultiplayerGameBtn.classList.toggle("is-waiting", !canManageRoom && !matchRunning);
@@ -4347,7 +4664,7 @@ function startGame(options = {}) {
   }
   if (multiplayerMode) {
     updateTimer();
-    momentEl.textContent = lobbyPreviewMode ? "Room abierta: acomodando equipos" : "Multijugador online";
+    momentEl.textContent = lobbyPreviewMode ? t("game.openRoom") : t("game.online");
   }
 }
 
@@ -4461,11 +4778,11 @@ function setupTouchControls() {
       }
       return;
     }
-    kickBall(16.66, modePhrase("Pase alto por encima del arquero", "Pase alto: que la busque el cielo"), 0, 8.4, "pass");
+    kickBall(16.66, localized("Pase alto por encima del arquero", "High pass over the goalkeeper"), 0, 8.4, "pass");
   });
   touchPassBtn?.addEventListener("pointerdown", (event) => {
     event.preventDefault();
-    kickBall(16.66, "Pase potente al espacio", 0, 0.8, "pass");
+    kickBall(16.66, localized("Pase al espacio", "Pass into space"), 0, 0.8, "pass");
   });
   touchShotBtn?.addEventListener("pointerdown", (event) => {
     event.preventDefault();
@@ -4505,6 +4822,7 @@ logsDialog?.addEventListener("click", (event) => {
   if (event.target === logsDialog) logsDialog.hidden = true;
 });
 musicToggleBtn.addEventListener("click", toggleMute);
+languageToggleBtn?.addEventListener("click", toggleLanguage);
 connectServerBtn.addEventListener("click", connectOnlineServer);
 serverSettingsBtn?.addEventListener("click", () => {
   serverSettingsPanel.hidden = !serverSettingsPanel.hidden;
@@ -4676,10 +4994,10 @@ window.addEventListener("keydown", (event) => {
     return;
   }
   if (event.code === "KeyQ") {
-    kickBall(16.66, modePhrase("Pase alto por encima del arquero", "Pase alto: que la busque el cielo"), 0, 8.4, "pass");
+    kickBall(16.66, localized("Pase alto por encima del arquero", "High pass over the goalkeeper"), 0, 8.4, "pass");
   }
   if (event.code === "KeyE" && !event.ctrlKey) {
-    kickBall(16.66, "Pase potente al espacio", 0, 0.8, "pass");
+    kickBall(16.66, localized("Pase al espacio", "Pass into space"), 0, 0.8, "pass");
   }
   if (event.code === "KeyC") {
     toggleCameraMode();
@@ -4723,7 +5041,7 @@ window.addEventListener("keyup", (event) => {
 window.addEventListener("resize", resize);
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState !== "visible" || !socket || socket.connected) return;
-  updateServerStatus("Reconectando...");
+  updateServerStatus(t("game.reconnecting"));
   socket.connect();
 });
 
@@ -4741,7 +5059,7 @@ updateMusicButton();
 serverUrlInput.value = new URLSearchParams(window.location.search).get("server") || socketServerUrl || defaultServerUrl;
 playerNameInput.value = onlinePlayerName;
 updateConnectionUi();
-renderRoomList();
+applyLanguage();
 
 const sharedRoomId = new URLSearchParams(window.location.search).get("room");
 connectOnlineServer();
@@ -4749,7 +5067,7 @@ if (sharedRoomId) {
   let sharedRoomAttempts = 0;
   const joinSharedRoomWhenReady = () => {
     if (socket?.connected) {
-      requestPlayerIdentity("Entrar a la partida", () => joinOnlineRoom(sharedRoomId));
+      requestPlayerIdentity(t("identity.joinMatch"), () => joinOnlineRoom(sharedRoomId));
       return;
     }
     sharedRoomAttempts += 1;

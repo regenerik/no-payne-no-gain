@@ -667,6 +667,33 @@ la versión multijugador actual.
   definicion al acercarse a los cuadros.
 - La franja roja decorativa fue retrasada contra la pared para que recorra
   el museo por detras de las fotografias sin atravesarlas visualmente.
+- El aviso de Modo libre desbloqueado recibio una animacion propia de mayor
+  duracion, fondo de alto contraste y texto adaptable a cada pantalla.
+- El mensaje permanece claramente visible durante varios segundos para que
+  el jugador no pierda el aviso al alcanzar los 20 goles.
+
+
+35. INTERFAZ COMPLETA EN ESPANOL E INGLES
+
+- El nombre definitivo del juego y el titulo del navegador pasaron a ser
+  FOOTBALL WORLD CUP y se conservan siempre en ingles.
+- Se agrego un selector ES/EN junto al control de musica del menu principal.
+- La preferencia de idioma queda guardada y se recupera al volver a abrir o
+  recargar el juego.
+- Se tradujeron el menu, tutorial, formularios, listado de salas, lobby,
+  configuracion de partidos, HUD, controles, mensajes dinamicos, goles,
+  saques, resultados, avisos de conexion y textos para espectadores.
+- El tablero fisico del estadio tambien adapta los nombres de equipos, el
+  tiempo y el modo de entrenamiento al idioma elegido.
+- En espanol se conserva la palabra sprint para identificar la aceleracion
+  del jugador.
+- Se corrigieron tildes y ortografia en palabras como musica, colision,
+  camara, fisica, limites, conexion y mistica.
+- Se adapto el ancho del titulo y se uso Entrenar en el boton espanol para
+  mantener la misma composicion visual que Training en celular.
+- Se agregaron etiquetas accesibles bilingues para los controles principales.
+- La interfaz fue comprobada en escritorio y en un viewport movil de
+  390 x 844 pixeles, sin errores de ejecucion ni textos desbordados.
 
 
 Este proyecto comenzó como una pequeña broma futbolera protagonizada por

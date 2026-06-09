@@ -1,4 +1,4 @@
-# Futbol World Cup
+# FOOTBALL WORLD CUP
 
 Juego de futbol 3D para navegador con entrenamiento y multijugador online.
 
